@@ -1,0 +1,14 @@
+# Ignorar pastas de build do ROS 2 / Colcon
+build/
+install/
+log/
+
+# Ignorar arquivos temporários do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignorar configurações locais de editores (opcional)
+.vscode/
+.idea/
