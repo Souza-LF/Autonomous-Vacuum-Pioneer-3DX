@@ -14,6 +14,18 @@ from geometry_msgs.msg import PoseStamped
 from nav2_msgs.action import NavigateThroughPoses
 
 
+BT_POR_DISTRO = {
+    'humble': 'coverage_through_poses_humble.xml',
+    'jazzy': 'coverage_through_poses_jazzy.xml',
+}
+
+STATUS_NOMES = {
+    GoalStatus.STATUS_SUCCEEDED: 'SUCCEEDED',
+    GoalStatus.STATUS_CANCELED: 'CANCELED',
+    GoalStatus.STATUS_ABORTED: 'ABORTED',
+}
+
+
 def quaternion_from_yaw(yaw):
     """Converte um ângulo Yaw (2D) para Quaternion (x, y, z, w)."""
     return (0.0, 0.0, math.sin(yaw / 2.0), math.cos(yaw / 2.0))
@@ -186,13 +198,29 @@ class BoustrophedonPlanner(Node):
             )
             return
 
+        # BT própria: a padrão descarta waypoints a menos de 0,7 m (> espaçamento das faixas).
+        # O formato do XML muda entre o Humble (BT.CPP v3) e o Jazzy (BT.CPP v4).
+        distro = os.environ.get('ROS_DISTRO', '')
+        bt_file = BT_POR_DISTRO.get(distro)
+        if bt_file is None:
+            self.get_logger().error(
+                f'Não há BT de cobertura para ROS_DISTRO="{distro}" '
+                f'(só {", ".join(BT_POR_DISTRO)}). Missão não enviada.'
+            )
+            return
+        bt_path = os.path.join(
+            get_package_share_directory('vacuum_test'), 'behavior_trees', bt_file)
+        if not os.path.isfile(bt_path):
+            self.get_logger().error(
+                f'BT não encontrada em {bt_path}. Rode o colcon build de novo. Missão não enviada.'
+            )
+            return
+
         self.nav_started = True
         goal_msg = NavigateThroughPoses.Goal()
         goal_msg.poses = poses
-        # BT própria: a padrão descarta waypoints a menos de 0,7 m (> espaçamento das faixas)
-        goal_msg.behavior_tree = os.path.join(
-            get_package_share_directory('vacuum_test'),
-            'behavior_trees', 'coverage_through_poses.xml')
+        goal_msg.behavior_tree = bt_path
+        self.get_logger().info(f'Usando a BT {bt_file} (ROS {distro}).')
 
         self.get_logger().info(f'Enviando {len(poses)} waypoints para o Nav2 iniciar a limpeza!')
         send_goal_future = self.nav_client.send_goal_async(
@@ -219,9 +247,15 @@ class BoustrophedonPlanner(Node):
     def nav_result_callback(self, future):
         result = future.result()
         if result.status != GoalStatus.STATUS_SUCCEEDED:
+            status = STATUS_NOMES.get(result.status, str(result.status))
+            # O Humble não tem error_code no resultado (é std_msgs/Empty); o Jazzy tem
+            error_code = getattr(result.result, 'error_code', None)
+            detalhe = (
+                f', error_code={error_code} {getattr(result.result, "error_msg", "")}'
+                if error_code is not None else ''
+            )
             self.get_logger().error(
-                f'Nav2 NÃO concluiu a limpeza (status={result.status}, '
-                f'error_code={result.result.error_code} {result.result.error_msg}). '
+                f'Nav2 NÃO concluiu a limpeza (status={status}{detalhe}). '
                 'Veja o terminal do Nav2.'
             )
             return

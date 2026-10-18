@@ -1,5 +1,5 @@
 <!--
-  Copia da BT padrao do Nav2 Jazzy (navigate_through_poses_w_replanning_and_recovery.xml)
+  Copia da BT padrao do Nav2 JAZZY (navigate_through_poses_w_replanning_and_recovery.xml)
   com UMA mudanca: RemovePassedGoals radius 0.7 -> 0.25.
   O raio padrao (0.7 m) e maior que o espacamento dos waypoints do boustrophedon
   (0.45 m na faixa, 0.40 m entre faixas): o Nav2 descartaria o proximo waypoint
