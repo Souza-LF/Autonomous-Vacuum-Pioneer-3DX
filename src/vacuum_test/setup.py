@@ -12,6 +12,8 @@ setup(
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/behavior_trees',
             ['behavior_trees/coverage_through_poses.xml']),
+        ('share/' + package_name + '/config',
+            ['config/pioneer_nav2_params.yaml']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
