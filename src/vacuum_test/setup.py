@@ -25,6 +25,8 @@ setup(
     entry_points={
         'console_scripts': [
 		'safety_distance = vacuum_test.safety_distance:main',
+		'wall_follower = vacuum_test.wall_follower_node:main',
+		'boustrophedon_planner = vacuum_test.boustrophedon_planner:main',
         ],
     },
 )
