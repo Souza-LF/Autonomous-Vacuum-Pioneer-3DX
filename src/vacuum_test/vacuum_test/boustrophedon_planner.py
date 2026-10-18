@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 import math
+import os
 import numpy as np
+from ament_index_python.packages import get_package_share_directory
+from action_msgs.msg import GoalStatus
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
@@ -186,6 +189,10 @@ class BoustrophedonPlanner(Node):
         self.nav_started = True
         goal_msg = NavigateThroughPoses.Goal()
         goal_msg.poses = poses
+        # BT própria: a padrão descarta waypoints a menos de 0,7 m (> espaçamento das faixas)
+        goal_msg.behavior_tree = os.path.join(
+            get_package_share_directory('vacuum_test'),
+            'behavior_trees', 'coverage_through_poses.xml')
 
         self.get_logger().info(f'Enviando {len(poses)} waypoints para o Nav2 iniciar a limpeza!')
         send_goal_future = self.nav_client.send_goal_async(
@@ -210,6 +217,14 @@ class BoustrophedonPlanner(Node):
             self.get_logger().info(f'Limpeza em andamento... Waypoints restantes: {remaining}')
 
     def nav_result_callback(self, future):
+        result = future.result()
+        if result.status != GoalStatus.STATUS_SUCCEEDED:
+            self.get_logger().error(
+                f'Nav2 NÃO concluiu a limpeza (status={result.status}, '
+                f'error_code={result.result.error_code} {result.result.error_msg}). '
+                'Veja o terminal do Nav2.'
+            )
+            return
         self.get_logger().info(
             '========================================================\n'
             'LIMPEZA BOUSTROPHEDON CONCLUÍDA COM SUCESSO PELO NAV2!\n'
