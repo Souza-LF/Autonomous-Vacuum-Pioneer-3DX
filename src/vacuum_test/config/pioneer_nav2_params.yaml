@@ -1,5 +1,6 @@
 # Copia de src/Pioneer-3DX-ROS2/config/pioneer_nav2_params.yaml com UMA mudanca:
-# a lista de plugins padrao saiu de bt_navigator.plugin_lib_names (ver o comentario em bt_navigator).
+# a lista de plugins padrao saiu de bt_navigator.plugin_lib_names. No Humble isso nao muda nada;
+# no Jazzy e obrigatorio (ver o comentario em bt_navigator).
 # Fica aqui, e nao no submodulo, para a correcao viver no repositorio do projeto.
 # Uso: params_file:=$HOME/Desktop/Projects/pioneer_ws/src/vacuum_test/config/pioneer_nav2_params.yaml
 
@@ -57,9 +58,11 @@ bt_navigator:
     # nav2_bt_navigator/navigate_to_pose_w_replanning_and_recovery.xml
     # nav2_bt_navigator/navigate_through_poses_w_replanning_and_recovery.xml
     # They can be set here or via a RewrittenYaml remap from a parent launch file to Nav2.
-    # Jazzy: os plugins padrao da BT ja sao carregados automaticamente.
-    # Lista-los de novo aqui faz o BT.CPP lancar "ID [...] already registered"
-    # e o bt_navigator nao sobe (sem /navigate_through_poses).
+    # plugin_lib_names fica de fora de proposito:
+    # - Humble: sem o parametro, o bt_navigator usa a lista padrao, que ja contem
+    #   os 47 plugins que estavam listados aqui (e mais 2).
+    # - Jazzy: os plugins padrao sao carregados sempre e a lista e SOMADA a eles;
+    #   repetidos, o BT.CPP lanca "ID [...] already registered" e o bt_navigator nao sobe.
     # Use plugin_lib_names so para plugins PROPRIOS.
     # plugin_lib_names: []
 
