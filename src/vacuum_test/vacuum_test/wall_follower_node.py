@@ -36,7 +36,7 @@ class WallFollower(Node):
         self.subscription_odom = self.create_subscription(
             Odometry, '/odom', self.odom_callback, 10)
 
-	self.stop_count = 0
+        self.stop_count = 0
 
         # Loop de controle a 20 Hz (0.05s)
         self.timer = self.create_timer(0.05, self.control_loop)
@@ -157,7 +157,7 @@ class WallFollower(Node):
 
         msg = Twist()
 
- 	# =====================================================================
+     # =====================================================================
         # ESTADO 5: Percebe a volta, envia parada 3 vezes e libera o /cmd_vel
         # =====================================================================
         if self.state == 5:
