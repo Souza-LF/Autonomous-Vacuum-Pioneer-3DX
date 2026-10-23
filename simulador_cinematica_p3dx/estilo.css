@@ -1,0 +1,456 @@
+/* estilo.css: aparência do simulador. As cores e fontes do desenho (canvas) também vêm daqui. */
+
+/* Painel de instrumentos em três colunas: comandos | cena | parâmetros; gráficos e histórico embaixo. */
+:root {
+  color-scheme: light;
+  --fundo: #f3f5f8;
+  --painel: #ffffff;
+  --borda: #dbe1ea;
+  --texto: #18212d;
+  --texto-suave: #5d6878;
+  --campo: #f7f9fb;
+  --fundo-cena: #fbfcfd;
+  --hud-fundo: rgba(255, 255, 255, 0.9);
+  --destaque: #1f5fbf;
+  --sobre-destaque: #ffffff;
+  --sombra: 0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(16, 24, 40, 0.07);
+
+  /* modelos (cores dos slides: trajetória azul, robô amarelo; o incremental em laranja e ciano) */
+  --dif: #1c64d6;
+  --dif-corpo: #f5c842;
+  --inc: #e8590c;
+  --inc-corpo: #66d0e0;
+  --exato: #8a94a6;
+
+  /* grandezas: cada uma tem a mesma cor em slider, gráfico e vetor */
+  --wl: #0c8599;
+  --wr: #c2255c;
+  --v: #2b8a3e;
+  --w: #7048e8;
+
+  --grade: #edf0f4;
+  --grade-forte: #d3dae4;
+  --eixo-x: #e03131;
+  --eixo-y: #2f9e44;
+  --orientacao: #e03131;
+  --aviso-fundo: #fff4d6;
+  --aviso-texto: #7a5300;
+
+  --fonte-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --fonte-mat: "STIX Two Text", "Cambria Math", Cambria, Georgia, serif;
+  --fonte-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --fundo: #0f141b;
+    --painel: #161d26;
+    --borda: #2a3442;
+    --texto: #e6ebf2;
+    --texto-suave: #9aa6b6;
+    --campo: #0f141b;
+    --fundo-cena: #0c1117;
+    --hud-fundo: rgba(22, 29, 38, 0.88);
+    --destaque: #5b9cff;
+    --sobre-destaque: #0b1424;
+    --sombra: none;
+    --dif: #5b9cff;
+    --dif-corpo: #e8b923;
+    --inc: #ff8a4c;
+    --inc-corpo: #3fbfd1;
+    --exato: #8a94a6;
+    --wl: #3bc9db;
+    --wr: #f06595;
+    --v: #69db7c;
+    --w: #b197fc;
+    --grade: #1a222d;
+    --grade-forte: #2a3646;
+    --eixo-x: #ff6b6b;
+    --eixo-y: #51cf66;
+    --orientacao: #ff6b6b;
+    --aviso-fundo: #3b2f0b;
+    --aviso-texto: #ffd666;
+  }
+}
+/* os mesmos valores escuros quando o tema é escolhido à mão */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --fundo: #0f141b;
+  --painel: #161d26;
+  --borda: #2a3442;
+  --texto: #e6ebf2;
+  --texto-suave: #9aa6b6;
+  --campo: #0f141b;
+  --fundo-cena: #0c1117;
+  --hud-fundo: rgba(22, 29, 38, 0.88);
+  --destaque: #5b9cff;
+  --sobre-destaque: #0b1424;
+  --sombra: none;
+  --dif: #5b9cff;
+  --dif-corpo: #e8b923;
+  --inc: #ff8a4c;
+  --inc-corpo: #3fbfd1;
+  --exato: #8a94a6;
+  --wl: #3bc9db;
+  --wr: #f06595;
+  --v: #69db7c;
+  --w: #b197fc;
+  --grade: #1a222d;
+  --grade-forte: #2a3646;
+  --eixo-x: #ff6b6b;
+  --eixo-y: #51cf66;
+  --orientacao: #ff6b6b;
+  --aviso-fundo: #3b2f0b;
+  --aviso-texto: #ffd666;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0 auto;
+  max-width: 1560px;
+  padding-block: 16px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--fundo);
+  color: var(--texto);
+  font: 14px/1.45 var(--fonte-ui);
+}
+
+/* ---------- topo ---------- */
+.topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  margin-bottom: 12px;
+}
+.titulo { min-width: 0; }
+.titulo h1 { font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.titulo p { margin: 2px 0 0; color: var(--texto-suave); font-size: 13px; }
+
+.modos { display: flex; flex-wrap: wrap; gap: 8px; border: 0; padding: 0; margin: 0; }
+.modos legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.modo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 10px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--painel);
+  font-weight: 600;
+  cursor: pointer;
+}
+.modo input { margin: 0; accent-color: var(--destaque); }
+/* amostra da trajetória: a mesma linha com pontos por passo que aparece na cena */
+.amostra {
+  position: relative;
+  width: 22px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--cor);
+}
+.amostra::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: var(--cor);
+}
+.amostra-dif { --cor: var(--dif); }
+.amostra-inc { --cor: var(--inc); }
+
+.execucao { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+
+button {
+  font: inherit;
+  padding: 6px 12px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--painel);
+  color: var(--texto);
+  cursor: pointer;
+}
+button:hover { border-color: var(--destaque); }
+button.primario {
+  min-width: 96px;
+  background: var(--destaque);
+  border-color: var(--destaque);
+  color: var(--sobre-destaque);
+  font-weight: 600;
+}
+button.pequeno { padding: 2px 8px; font-size: 12px; }
+button.largo { width: 100%; }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible, canvas:focus-visible {
+  outline: 2px solid var(--destaque);
+  outline-offset: 2px;
+}
+
+/* ---------- painel principal ---------- */
+.painel {
+  display: grid;
+  grid-template-columns: 290px minmax(0, 1fr) 290px;
+  gap: 12px;
+  align-items: start;
+}
+
+.cartao {
+  min-width: 0;
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: var(--sombra);
+}
+.cartao h2 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+.cartao h2 small { margin-left: 6px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.cartao h2 .seta { color: var(--texto); }
+h2.separado { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--borda); }
+
+.controle { margin-bottom: 12px; }
+.linha-rotulo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.linha-rotulo label { font-weight: 600; }
+.simb {
+  margin-right: 3px;
+  font-family: var(--fonte-mat);
+  font-size: 18px;
+  font-style: italic;
+}
+.campo { display: inline-flex; align-items: center; gap: 4px; }
+.campo input {
+  width: 80px;
+  padding: 4px 6px;
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  background: var(--campo);
+  color: var(--texto);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.un { min-width: 24px; color: var(--texto-suave); font-size: 12px; }
+.sec {
+  margin: 2px 0 0;
+  min-height: 1.45em;
+  color: var(--texto-suave);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* sliders com marca no zero (a trilha é simétrica, então o zero fica no meio) */
+.trilho { position: relative; padding: 6px 0; }
+.trilho::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--texto-suave);
+  opacity: 0.45;
+  pointer-events: none;
+}
+.trilho.sem-zero::after { display: none; }
+input[type="range"] { display: block; width: 100%; margin: 0; accent-color: var(--cor, var(--destaque)); }
+
+.cor-wl { --cor: var(--wl); }
+.cor-wr { --cor: var(--wr); }
+.cor-v { --cor: var(--v); }
+.cor-w { --cor: var(--w); }
+.controle .simb { color: var(--cor, var(--texto)); }
+.cor-wl-txt, .cor-wr-txt, .cor-v-txt, .cor-w-txt { font-weight: 600; }
+.cor-wl-txt { color: var(--wl); }
+.cor-wr-txt { color: var(--wr); }
+.cor-v-txt { color: var(--v); }
+.cor-w-txt { color: var(--w); }
+
+.aviso {
+  margin: 0 0 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--aviso-fundo);
+  color: var(--aviso-texto);
+  font-size: 12px;
+}
+.botoes { display: flex; flex-wrap: wrap; gap: 6px; }
+.dica { margin: 10px 0 0; color: var(--texto-suave); font-size: 12px; line-height: 1.8; }
+kbd {
+  padding: 0 4px;
+  border: 1px solid var(--borda);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--campo);
+  font: 11px var(--fonte-mono);
+}
+
+/* ---------- cena ---------- */
+.cena { padding: 10px; }
+.tela { position: relative; }
+#mundo {
+  display: block;
+  width: 100%;
+  height: clamp(320px, 64vh, 660px);
+  border-radius: 8px;
+  background: var(--fundo-cena);
+  cursor: grab;
+  touch-action: none;
+}
+#mundo.arrastando { cursor: grabbing; }
+
+.hud {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  max-width: calc(100% - 20px);
+  overflow: hidden;
+  padding: 6px 9px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--hud-fundo);
+  font-size: 12px;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.hud .linha { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.hud .marca { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.hud .suave { color: var(--texto-suave); }
+.hud .alerta { color: var(--aviso-texto); font-weight: 600; }
+
+/* barra embaixo da cena: dica à esquerda, zoom à direita (fora do desenho, para não cobrir nada) */
+.barra-tela {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  margin-top: 6px;
+}
+.dica-tela { margin: 0 2px; color: var(--texto-suave); font-size: 12px; }
+.zoom { display: flex; gap: 4px; }
+.zoom button { padding: 3px 10px; }
+
+.diferenca { margin-top: 10px; padding: 6px 4px 0; }
+.faixa-dif { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.lado { color: var(--texto-suave); font-size: 12px; white-space: nowrap; }
+
+/* ---------- parâmetros ---------- */
+.grade-campos {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.grade-campos select {
+  padding: 4px 6px;
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  background: var(--campo);
+  color: var(--texto);
+  font: inherit;
+}
+.pose-inicial {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 6px 8px 8px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.pose-inicial legend { padding: 0 4px; color: var(--texto-suave); font-size: 12px; }
+.pose-inicial label { display: flex; align-items: center; justify-content: space-between; }
+.marcar { display: grid; gap: 6px; }
+.marcar label { display: flex; align-items: center; gap: 8px; }
+.exemplos { display: grid; gap: 6px; }
+.exemplos button { font-size: 13px; text-align: left; }
+.nota { margin: 8px 0 0; color: var(--texto-suave); font-size: 12px; }
+code { padding: 0 3px; border-radius: 4px; background: var(--campo); font: 12px var(--fonte-mono); }
+
+/* ---------- gráficos ---------- */
+.graficos, .historico, .equacoes { margin-top: 12px; }
+.planos {
+  display: grid;
+  /* coluna do meio com largura fixa: as matrizes mudam de valor sem empurrar os gráficos */
+  grid-template-columns: minmax(0, 1fr) 280px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+.planos figure { min-width: 0; margin: 0; }
+.planos canvas {
+  display: block;
+  width: 100%;
+  max-width: 440px;
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+  border-radius: 8px;
+  background: var(--fundo-cena);
+  cursor: crosshair;
+  touch-action: none;
+}
+figcaption { max-width: 440px; margin: 6px auto 0; color: var(--texto-suave); font-size: 12px; }
+
+.matrizes { display: grid; justify-items: center; gap: 16px; min-width: 0; overflow-x: auto; font-variant-numeric: tabular-nums; }
+.mat-bloco { display: grid; justify-items: center; gap: 4px; }
+.mat-titulo { color: var(--texto-suave); font-size: 12px; }
+.mat-eq { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.mat {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 1), auto);
+  gap: 2px 10px;
+  padding: 2px 7px;
+  border-left: 2px solid var(--texto);
+  border-right: 2px solid var(--texto);
+  border-radius: 5px;
+  text-align: right;
+  white-space: nowrap;
+}
+.mat.num span { min-width: 3.4em; }
+
+.series { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.series canvas { display: block; width: 100%; height: 170px; border-radius: 8px; background: var(--fundo-cena); }
+
+/* ---------- equações e rodapé ---------- */
+.equacoes summary { font-weight: 700; cursor: pointer; }
+.eqs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px 24px; margin-top: 10px; }
+.eqs h3 { margin: 0 0 6px; font-size: 13px; }
+.eqs p { margin: 4px 0; }
+.eq { font-family: var(--fonte-mat); font-size: 16px; }
+.rodape { margin: 16px 0 8px; color: var(--texto-suave); font-size: 12px; }
+
+/* ---------- telas menores ---------- */
+@media (max-width: 1180px) {
+  .painel { grid-template-columns: 280px minmax(0, 1fr); }
+  .parametros { grid-column: 1 / -1; }
+}
+@media (max-width: 1000px) {
+  /* os dois planos lado a lado e as matrizes embaixo */
+  .planos { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .matrizes { grid-column: 1 / -1; grid-row: 2; }
+}
+@media (max-width: 760px) {
+  body { padding-block: 10px; }
+  .painel { grid-template-columns: minmax(0, 1fr); }
+  .cena { order: -1; }
+  .execucao { margin-left: 0; }
+  #mundo { height: 56vh; }
+  .hud { font-size: 11px; }
+  .planos, .series { grid-template-columns: minmax(0, 1fr); }
+  .faixa-dif { grid-template-columns: minmax(0, 1fr); }
+  .faixa-dif .lado:last-child { text-align: right; }
+}

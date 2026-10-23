@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador P3-DX</title>
+<meta name="description" content="Simulador da cinemática do robô diferencial Pioneer P3-DX: modelos diferencial e incremental, cinemática direta e inversa.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;500;600;700&family=STIX+Two+Text:ital,wght@0,400;0,600;1,400;1,600&display=swap">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+<header class="topo">
+  <div class="titulo">
+    <h1>Simulador cinemático do Pioneer P3-DX</h1>
+    <p>ENE122 Robótica Móvel · Cinemática, Partes A e B · robô de acionamento diferencial</p>
+  </div>
+
+  <fieldset class="modos">
+    <legend>Modelo da pose</legend>
+    <label class="modo"><input type="checkbox" id="modo-dif" checked> Modelo diferencial <span class="amostra amostra-dif" aria-hidden="true"></span></label>
+    <label class="modo"><input type="checkbox" id="modo-inc"> Modelo incremental <span class="amostra amostra-inc" aria-hidden="true"></span></label>
+  </fieldset>
+
+  <div class="execucao">
+    <button type="button" id="btn-rodar" class="primario">Pausar</button>
+    <button type="button" id="btn-reiniciar">Reiniciar</button>
+    <button type="button" id="btn-limpar">Limpar rastro</button>
+  </div>
+</header>
+
+<main class="painel">
+
+  <!-- Esquerda: velocidades. Mexer nas rodas recalcula v e ω (direta); mexer em v e ω recalcula as rodas (inversa). -->
+  <aside class="cartao comandos" aria-label="Velocidades">
+    <h2>Rodas <span class="seta">→</span> robô <small>cinemática direta</small></h2>
+
+    <div class="controle cor-wl">
+      <div class="linha-rotulo">
+        <label for="wl-num"><span class="simb">φ̇<sub>L</sub></span> roda esquerda</label>
+        <span class="campo"><input type="number" id="wl-num" step="1" inputmode="decimal"><span class="un">°/s</span></span>
+      </div>
+      <div class="trilho"><input type="range" id="wl" min="-360" max="360" step="1" value="0" aria-label="φ̇ L em graus por segundo"></div>
+      <p class="sec" id="wl-sec"></p>
+    </div>
+
+    <div class="controle cor-wr">
+      <div class="linha-rotulo">
+        <label for="wr-num"><span class="simb">φ̇<sub>R</sub></span> roda direita</label>
+        <span class="campo"><input type="number" id="wr-num" step="1" inputmode="decimal"><span class="un">°/s</span></span>
+      </div>
+      <div class="trilho"><input type="range" id="wr" min="-360" max="360" step="1" value="0" aria-label="φ̇ R em graus por segundo"></div>
+      <p class="sec" id="wr-sec"></p>
+    </div>
+
+    <h2 class="separado">Robô <span class="seta">→</span> rodas <small>cinemática inversa</small></h2>
+
+    <div class="controle cor-v">
+      <div class="linha-rotulo">
+        <label for="v-num"><span class="simb">v</span> velocidade linear</label>
+        <span class="campo"><input type="number" id="v-num" step="0.01" inputmode="decimal"><span class="un">m/s</span></span>
+      </div>
+      <div class="trilho"><input type="range" id="v" min="-0.6" max="0.6" step="0.001" value="0" aria-label="v em metros por segundo"></div>
+      <p class="sec" id="v-sec"></p>
+    </div>
+
+    <div class="controle cor-w">
+      <div class="linha-rotulo">
+        <label for="w-num"><span class="simb">ω</span> velocidade angular</label>
+        <span class="campo"><input type="number" id="w-num" step="1" inputmode="decimal"><span class="un">°/s</span></span>
+      </div>
+      <div class="trilho"><input type="range" id="w" min="-180" max="180" step="0.1" value="0" aria-label="ω em graus por segundo"></div>
+      <p class="sec" id="w-sec"></p>
+    </div>
+
+    <p class="aviso" id="aviso-saturacao" hidden>Roda no limite: o comando foi reduzido mantendo o raio de curva.</p>
+
+    <div class="botoes">
+      <button type="button" id="btn-parar">Parar</button>
+      <button type="button" id="btn-reta">Reta</button>
+      <button type="button" id="btn-girar">Girar no lugar</button>
+    </div>
+    <p class="dica">Teclado: <kbd>↑</kbd><kbd>↓</kbd> mudam v, <kbd>←</kbd><kbd>→</kbd> mudam ω, <kbd>espaço</kbd> pausa, <kbd>0</kbd> para, <kbd>R</kbd> reinicia.</p>
+  </aside>
+
+  <!-- Centro: o robô no plano -->
+  <section class="cartao cena" aria-label="Robô no plano">
+    <div class="tela">
+      <canvas id="mundo" aria-label="Robô e trajetória no plano x-y"></canvas>
+      <div class="hud" id="hud" aria-live="off"></div>
+    </div>
+    <div class="barra-tela">
+      <p class="dica-tela">Arraste para mover a vista; roda do mouse ou botões para o zoom; duplo clique enquadra.</p>
+      <div class="zoom">
+        <button type="button" id="btn-zoom-mais" title="Aproximar" aria-label="Aproximar">+</button>
+        <button type="button" id="btn-zoom-menos" title="Afastar" aria-label="Afastar">−</button>
+        <button type="button" id="btn-enquadrar" title="Enquadrar a trajetória">Enquadrar</button>
+      </div>
+    </div>
+
+    <div class="diferenca">
+      <div class="linha-rotulo">
+        <label for="dif-diametro">Diferença de diâmetro entre as rodas</label>
+        <button type="button" id="btn-dif-zerar" class="pequeno">Zerar</button>
+      </div>
+      <div class="faixa-dif">
+        <span class="lado">◀ esquerda maior</span>
+        <div class="trilho"><input type="range" id="dif-diametro" min="-20" max="20" step="0.5" value="0" aria-label="Diferença de diâmetro em milímetros"></div>
+        <span class="lado">direita maior ▶</span>
+      </div>
+      <p class="sec" id="dif-sec"></p>
+    </div>
+  </section>
+
+  <!-- Direita: parâmetros -->
+  <aside class="cartao parametros" aria-label="Parâmetros">
+    <h2>Parâmetros do robô</h2>
+    <div class="grade-campos">
+      <label for="p-diametro">Diâmetro da roda</label>
+      <span class="campo"><input type="number" id="p-diametro" min="20" max="600" step="1" value="195"><span class="un">mm</span></span>
+      <label for="p-distancia">Distância entre rodas (L = 2l)</label>
+      <span class="campo"><input type="number" id="p-distancia" min="50" max="1500" step="1" value="381"><span class="un">mm</span></span>
+      <label for="p-wmax">Velocidade máx. da roda</label>
+      <span class="campo"><input type="number" id="p-wmax" min="10" max="1440" step="10" value="360"><span class="un">°/s</span></span>
+    </div>
+    <p class="sec" id="p-derivados"></p>
+    <button type="button" id="btn-p3dx" class="largo">Restaurar P3-DX (slides 26 e 27)</button>
+
+    <h2 class="separado">Simulação</h2>
+    <div class="controle">
+      <div class="linha-rotulo">
+        <label for="p-dt-num">Tempo de amostragem Δt</label>
+        <span class="campo"><input type="number" id="p-dt-num" min="0.001" max="2" step="0.01" value="0.1"><span class="un">s</span></span>
+      </div>
+      <div class="trilho sem-zero"><input type="range" id="p-dt" min="0" max="100" step="1" aria-label="Δt em escala logarítmica"></div>
+    </div>
+    <div class="grade-campos">
+      <label for="p-escala">Velocidade da simulação</label>
+      <select id="p-escala">
+        <option value="0.25">×0,25</option>
+        <option value="0.5">×0,5</option>
+        <option value="1" selected>×1 (tempo real)</option>
+        <option value="2">×2</option>
+        <option value="5">×5</option>
+        <option value="10">×10</option>
+      </select>
+      <label for="p-tmax">Duração (0 = sem fim)</label>
+      <span class="campo"><input type="number" id="p-tmax" min="0" max="3600" step="1" value="0"><span class="un">s</span></span>
+    </div>
+    <fieldset class="pose-inicial">
+      <legend>Pose inicial (vale ao reiniciar)</legend>
+      <label><span>x<sub>0</sub></span> <span class="campo"><input type="number" id="p-x0" step="0.1" value="0"><span class="un">m</span></span></label>
+      <label><span>y<sub>0</sub></span> <span class="campo"><input type="number" id="p-y0" step="0.1" value="0"><span class="un">m</span></span></label>
+      <label><span>θ<sub>0</sub></span> <span class="campo"><input type="number" id="p-th0" step="5" value="0"><span class="un">°</span></span></label>
+    </fieldset>
+
+    <h2 class="separado">Exibir</h2>
+    <div class="marcar">
+      <label><input type="checkbox" id="ex-exato"> Arco exato (referência)</label>
+      <label><input type="checkbox" id="ex-icc" checked> ICC e vetores de velocidade</label>
+      <label><input type="checkbox" id="ex-amostras" checked> Pontos de cada passo Δt</label>
+      <label><input type="checkbox" id="ex-seguir"> Câmera segue o robô</label>
+    </div>
+
+    <h2 class="separado">Exemplos dos slides</h2>
+    <div class="exemplos">
+      <button type="button" data-exemplo="slide27">Slide 27: diferencial, 60 e 70 °/s, Δt = 0,1 s</button>
+      <button type="button" data-exemplo="slide48">Slide 48: incremental, 50 e 80 °/s, Δt = 0,2 s</button>
+      <button type="button" data-exemplo="slide55">Slide 55 (atividade): os dois modelos, 50 e 80 °/s, Δt = 1 s</button>
+    </div>
+    <p class="nota">Rodam 30 s com o mesmo número de passos do laço <code>np.arange(0, tmax + dt, dt)</code>, então a pose final é a do Python. O código do slide 48 termina em (−0,649; 1,335) m e 231,9°; a figura do slide 53 repete o resultado do exemplo do slide 27.</p>
+  </aside>
+</main>
+
+<section class="cartao graficos" aria-label="Cinemática direta e inversa">
+  <h2>Cinemática direta ⇄ inversa <small>arraste o ponto em qualquer um dos dois gráficos</small></h2>
+  <div class="planos">
+    <figure>
+      <canvas id="plano-rodas" aria-label="Plano das rodas: φ̇ L no eixo x, φ̇ R no eixo y"></canvas>
+      <figcaption>Espaço das rodas (φ̇<sub>L</sub>, φ̇<sub>R</sub>). As retas tracejadas passam pelo ponto atual: <span class="cor-v-txt">v constante</span> e <span class="cor-w-txt">ω constante</span>.</figcaption>
+    </figure>
+    <div class="matrizes" id="matrizes"></div>
+    <figure>
+      <canvas id="plano-robo" aria-label="Plano do robô: ω no eixo x, v no eixo y"></canvas>
+      <figcaption>Espaço do robô (ω, v). O losango é tudo o que as rodas alcançam; as tracejadas são <span class="cor-wl-txt">φ̇<sub>L</sub> constante</span> e <span class="cor-wr-txt">φ̇<sub>R</sub> constante</span>.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="cartao historico" aria-label="Histórico no tempo">
+  <h2>Histórico no tempo <small>últimos 20 s</small></h2>
+  <div class="series">
+    <canvas id="serie-rodas" aria-label="φ̇ L e φ̇ R no tempo"></canvas>
+    <canvas id="serie-v" aria-label="v no tempo"></canvas>
+    <canvas id="serie-w" aria-label="ω no tempo"></canvas>
+    <canvas id="serie-erro" aria-label="Desvio de cada modelo em relação ao arco exato"></canvas>
+  </div>
+</section>
+
+<details class="cartao equacoes">
+  <summary>Equações usadas</summary>
+  <div class="eqs">
+    <div>
+      <h3>Rodas → robô (direta, slides 15 a 17)</h3>
+      <p class="eq">v = (r<sub>R</sub> φ̇<sub>R</sub> + r<sub>L</sub> φ̇<sub>L</sub>) / 2</p>
+      <p class="eq">ω = (r<sub>R</sub> φ̇<sub>R</sub> − r<sub>L</sub> φ̇<sub>L</sub>) / (2l)</p>
+      <p>Com r<sub>L</sub> = r<sub>R</sub> = r: v = (r/2)(φ̇<sub>R</sub> + φ̇<sub>L</sub>) e ω = (r/2l)(φ̇<sub>R</sub> − φ̇<sub>L</sub>), como nos slides. Raios diferentes só aparecem com o slider de diferença de diâmetro.</p>
+    </div>
+    <div>
+      <h3>Robô → rodas (inversa, slide 18)</h3>
+      <p class="eq">φ̇<sub>L</sub> = (v − ω l) / r<sub>L</sub></p>
+      <p class="eq">φ̇<sub>R</sub> = (v + ω l) / r<sub>R</sub></p>
+      <p>Se uma roda passar do limite, as duas são reduzidas na mesma proporção, o que mantém R = v/ω.</p>
+    </div>
+    <div>
+      <h3>Modelo diferencial (Euler, slides 22 e 29)</h3>
+      <p class="eq">x<sub>k+1</sub> = x<sub>k</sub> + v cos θ<sub>k</sub> Δt</p>
+      <p class="eq">y<sub>k+1</sub> = y<sub>k</sub> + v sin θ<sub>k</sub> Δt</p>
+      <p class="eq">θ<sub>k+1</sub> = θ<sub>k</sub> + ω Δt</p>
+    </div>
+    <div>
+      <h3>Modelo incremental (slides 39 e 50)</h3>
+      <p class="eq">Δs = v Δt, &nbsp; Δθ = ω Δt</p>
+      <p class="eq">x<sub>k</sub> = x<sub>k−1</sub> + Δs cos(θ<sub>k−1</sub> + Δθ/2)</p>
+      <p class="eq">y<sub>k</sub> = y<sub>k−1</sub> + Δs sin(θ<sub>k−1</sub> + Δθ/2)</p>
+      <p class="eq">θ<sub>k</sub> = θ<sub>k−1</sub> + Δθ</p>
+    </div>
+    <div>
+      <h3>Referência: arco exato (fora dos slides)</h3>
+      <p>Com v e ω constantes no passo, o ponto médio anda sobre um arco de raio R = v/ω em torno do ICC. O arco não depende de Δt, então serve para medir o erro dos dois modelos. O Euler erra na ordem de Δt e o incremental na ordem de Δt², porque usa a orientação média do passo.</p>
+    </div>
+  </div>
+</details>
+
+<footer class="rodape">
+  <p>Geometria e parâmetros do P3-DX dos slides 26 e 27 (r = 97,5 mm, l = 190,5 mm). Os dois modelos foram conferidos contra os programas Python dos slides: mesmas trajetórias, bit a bit (veja <code>testes/</code>).</p>
+</footer>
+
+<script src="cinematica.js"></script>
+<script src="interface.js"></script>
+</body>
+</html>
