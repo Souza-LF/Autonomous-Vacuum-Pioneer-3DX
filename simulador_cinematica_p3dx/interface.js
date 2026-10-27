@@ -2,8 +2,11 @@
  * interface.js: estado, tempo, desenho e eventos do simulador.
  *
  * Toda a física está em cinematica.js. As velocidades das rodas são a fonte da
- * verdade (são os atuadores): mexer em φ̇_L ou φ̇_R recalcula v e ω pela cinemática
- * direta; mexer em v ou ω recalcula as rodas pela inversa e, daí, v e ω de novo.
+ * verdade (são os atuadores). O seletor de entrada escolhe quem o usuário comanda:
+ * no modo 1, φ̇_L e φ̇_R, e v e ω saem da cinemática direta; no modo 2, v e ω, e as
+ * rodas saem da inversa. A inversa usa o raio nominal (quem comanda não sabe da
+ * diferença de diâmetro); a direta usa os raios reais, então com rodas diferentes o
+ * robô executa um v e um ω diferentes do comando.
  * Os dois modelos (e o arco exato) recebem sempre os mesmos v e ω a cada passo Δt,
  * então podem ser comparados a qualquer momento.
  */
@@ -31,6 +34,8 @@
     wmax: PADRAO.wmax,    // limite de cada roda [rad/s]
     dt: 0.1, escala: 1, tmax: 0, tLimite: Infinity,
     wl: 0, wr: 0, v: 0, w: 0,
+    entrada: 'rodas',     // 'rodas' (modo 1) ou 'robo' (modo 2)
+    vCmd: 0, wCmd: 0,     // v e ω que as rodas dão com o raio nominal: o comando, no modo 2
     ativo: { diferencial: true, incremental: false },
     exibir: { exato: false, icc: true, amostras: true, seguir: false },
     rodando: true, fim: false, t: 0, k: 0, acumulado: 0,
@@ -46,6 +51,10 @@
 
   const el = {
     modoDif: $('modo-dif'), modoInc: $('modo-inc'),
+    entradaRodas: $('entrada-rodas'), entradaRobo: $('entrada-robo'), entradaSec: $('entrada-sec'),
+    blocoRodas: $('bloco-rodas'), blocoRobo: $('bloco-robo'), papelRodas: $('papel-rodas'), papelRobo: $('papel-robo'),
+    papelPlanoRodas: $('papel-plano-rodas'), papelPlanoRobo: $('papel-plano-robo'),
+    planosSub: $('planos-sub'), historicoSub: $('historico-sub'), series: $('series'), dica: $('dica-teclado'),
     rodar: $('btn-rodar'), reiniciar: $('btn-reiniciar'), limpar: $('btn-limpar'),
     wl: $('wl'), wlNum: $('wl-num'), wlSec: $('wl-sec'),
     wr: $('wr'), wrNum: $('wr-num'), wrSec: $('wr-sec'),
@@ -163,13 +172,25 @@
     if (s.saturou) est.saturouAte = performance.now() + 2500;
     est.wl = s.wl;
     est.wr = s.wr;
+    // o comando é o v e o ω que essas rodas dariam com o raio nominal (rodas iguais)
+    const r = est.D / 2;
+    const q = C.direta(est.wl, est.wr, r, r, est.L / 2);
+    est.vCmd = q.v;
+    est.wCmd = q.w;
     recalcularRobo(origem);
   }
 
+  // Inversa com o raio nominal: quem comanda v e ω não sabe da diferença de diâmetro
   function definirRobo(v, w, origem) {
-    const { rl, rr, l } = geometria();
-    const q = C.inversa(v, w, rl, rr, l);
+    const r = est.D / 2;
+    const q = C.inversa(v, w, r, r, est.L / 2);
     definirRodas(q.wl, q.wr, origem);
+  }
+
+  // Depois de mudar diâmetro, distância ou limite: mantém o que o usuário comanda no modo atual
+  function reaplicar(origem) {
+    if (est.entrada === 'robo') definirRobo(est.vCmd, est.wCmd, origem);
+    else definirRodas(est.wl, est.wr, origem);
   }
 
   // Mantém as rodas e recalcula v e ω (usado também quando mudam diâmetro ou distância)
@@ -200,19 +221,27 @@
     el.v.min = -vLim; el.v.max = vLim;
     el.w.min = -wLim; el.w.max = wLim;
 
+    // no modo 2 os controles de v e ω mostram o comando; no modo 1, o que o robô executa
+    const comando = est.entrada === 'robo';
+    const vMostra = comando ? est.vCmd : est.v, wMostra = comando ? est.wCmd : est.w;
     escrever(el.wl, est.wl * GRAU, origem);
     escrever(el.wr, est.wr * GRAU, origem);
-    escrever(el.v, est.v, origem);
-    escrever(el.w, est.w * GRAU, origem);
+    escrever(el.v, vMostra, origem);
+    escrever(el.w, wMostra * GRAU, origem);
     escrever(el.wlNum, est.wl * GRAU, origem, 1);
     escrever(el.wrNum, est.wr * GRAU, origem, 1);
-    escrever(el.vNum, est.v, origem, 3);
-    escrever(el.wNum, est.w * GRAU, origem, 1);
+    escrever(el.vNum, vMostra, origem, 3);
+    escrever(el.wNum, wMostra * GRAU, origem, 1);
 
     el.wlSec.innerHTML = `${num(est.wl, 3)} rad/s · v<sub>L</sub> = r<sub>L</sub> φ̇<sub>L</sub> = ${num(rl * est.wl, 3)} m/s`;
     el.wrSec.innerHTML = `${num(est.wr, 3)} rad/s · v<sub>R</sub> = r<sub>R</sub> φ̇<sub>R</sub> = ${num(rr * est.wr, 3)} m/s`;
-    el.vSec.textContent = `Δs = v·Δt = ${num(est.v * est.dt * 1000, 1)} mm por passo`;
-    el.wSec.textContent = `${num(est.w, 3)} rad/s · Δθ = ω·Δt = ${num(est.w * est.dt * GRAU, 2)}° por passo`;
+    if (comando && est.dD !== 0) {
+      el.vSec.textContent = `executado: v = ${num(est.v, 3)} m/s (raios diferentes)`;
+      el.wSec.textContent = `executado: ω = ${num(est.w * GRAU, 1)} °/s (raios diferentes)`;
+    } else {
+      el.vSec.textContent = `Δs = v·Δt = ${num(est.v * est.dt * 1000, 1)} mm por passo`;
+      el.wSec.textContent = `${num(est.w, 3)} rad/s · Δθ = ω·Δt = ${num(est.w * est.dt * GRAU, 2)}° por passo`;
+    }
 
     const { DL, DR } = geometria();
     const pct = (d) => (d === est.D ? '' : ` (+${num((d - est.D) * 1000, 1)} mm)`);
@@ -231,6 +260,7 @@
 
   function atualizarMatrizes() {
     const { rl, rr, l } = geometria();
+    const r = est.D / 2;
     // matrizes numéricas têm células de largura mínima, para não "pularem" enquanto os valores mudam
     const mat = (celulas, cols) =>
       `<div class="mat${celulas.every((c) => /^[−\d.,]+$/.test(c)) ? ' num' : ''}" style="--cols:${cols}">` +
@@ -242,11 +272,11 @@
         <div class="mat-eq">${mat([num(est.v, 3), num(est.w, 3)], 1)} = ${mat([num(rl / 2, 4), num(rr / 2, 4), num(-rl / (2 * l), 4), num(rr / (2 * l), 4)], 2)} ${mat([num(est.wl, 3), num(est.wr, 3)], 1)}</div>
       </div>
       <div class="mat-bloco">
-        <div class="mat-titulo">inversa: robô → rodas</div>
-        <div class="mat-eq">${mat(['φ̇<sub>L</sub>', 'φ̇<sub>R</sub>'], 1)} = ${mat(['1/r<sub>L</sub>', '−l/r<sub>L</sub>', '1/r<sub>R</sub>', 'l/r<sub>R</sub>'], 2)} ${mat(['v', 'ω'], 1)}</div>
-        <div class="mat-eq">${mat([num(est.wl, 3), num(est.wr, 3)], 1)} = ${mat([num(1 / rl, 3), num(-l / rl, 3), num(1 / rr, 3), num(l / rr, 3)], 2)} ${mat([num(est.v, 3), num(est.w, 3)], 1)}</div>
+        <div class="mat-titulo">inversa: robô → rodas (raio nominal r)</div>
+        <div class="mat-eq">${mat(['φ̇<sub>L</sub>', 'φ̇<sub>R</sub>'], 1)} = ${mat(['1/r', '−l/r', '1/r', 'l/r'], 2)} ${mat(['v', 'ω'], 1)}</div>
+        <div class="mat-eq">${mat([num(est.wl, 3), num(est.wr, 3)], 1)} = ${mat([num(1 / r, 3), num(-l / r, 3), num(1 / r, 3), num(l / r, 3)], 2)} ${mat([num(est.vCmd, 3), num(est.wCmd, 3)], 1)}</div>
       </div>
-      <div class="mat-titulo">v em m/s; ω e φ̇ em rad/s; r e l em m</div>`;
+      <div class="mat-titulo">v em m/s; ω e φ̇ em rad/s; r e l em m${est.dD !== 0 ? '<br>raios diferentes: a direta usa r<sub>L</sub> e r<sub>R</sub> reais, a inversa o r nominal' : ''}</div>`;
   }
 
   // ---------------------------------------------------------------- simulação
@@ -953,11 +983,23 @@
       // pelo ponto atual: φ̇_L constante (v − ωl = r_L φ̇_L) e φ̇_R constante (v + ωl = r_R φ̇_R)
       tracarReta(b, -l, 1, rl * est.wl, cor.wl, [6, 4], 1.6);
       tracarReta(b, l, 1, rr * est.wr, cor.wr, [6, 4], 1.6);
+      // modo 2 com rodas diferentes: anel vazio no comando, ligado ao ponto que o robô executa
+      if (est.entrada === 'robo' && (Math.abs(est.vCmd - est.v) > 1e-9 || Math.abs(est.wCmd - est.w) > 1e-9)) {
+        const cx = b.px(limitar(est.wCmd, -fw, fw)), cy = b.py(limitar(est.vCmd, -fv, fv));
+        ctx.strokeStyle = cor['texto-suave'];
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(b.px(limitar(est.w, -fw, fw)), b.py(limitar(est.v, -fv, fv))); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = cor.texto;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(cx, cy, 6.5, 0, 2 * Math.PI); ctx.stroke();
+      }
       pontoAtual(b, est.w, est.v, `φ̇_L = ${num(est.wl * GRAU, 1)} · φ̇_R = ${num(est.wr * GRAU, 1)} °/s`);
     }
   }
 
-  // Arrastar o ponto: no plano das rodas é a direta, no plano do robô é a inversa
+  // Arrastar o ponto: no plano das rodas é a direta (modo 1), no plano do robô é a inversa (modo 2)
   function ligarPlano(cv, aoMover) {
     let ativo = false;
     const mover = (e) => {
@@ -978,6 +1020,7 @@
   }
 
   ligarPlano(el.planoRodas, (px, py, w, h) => {
+    if (est.entrada !== 'rodas') return;
     const f = est.wmax * 1.15;
     let [wl, wr] = coordPlano(px, py, w, h, f, f);
     // ímã de 2 % nas retas especiais: fica fácil cair em "reta" ou "gira no lugar"
@@ -990,6 +1033,7 @@
   });
 
   ligarPlano(el.planoRobo, (px, py, w, h) => {
+    if (est.entrada !== 'robo') return;
     const { vmax, wmaxRobo } = limites();
     let [w_, v] = coordPlano(px, py, w, h, wmaxRobo * 1.15, vmax * 1.15);
     if (Math.abs(w_) < 0.02 * wmaxRobo) w_ = 0;
@@ -1113,6 +1157,7 @@
     est.ativo.diferencial = el.modoDif.checked = e.dif;
     est.ativo.incremental = el.modoInc.checked = e.inc;
     est.exibir.exato = el.exExato.checked = e.exato;
+    definirEntrada('rodas'); // os slides comandam as rodas
     reiniciar();
     definirRodas(e.wl * RAD, e.wr * RAD, null);
     // enquadra a trajetória que vai ser percorrida
@@ -1141,7 +1186,44 @@
     el.pL.value = PADRAO.L * 1000;
     el.pWmax.value = Math.round(PADRAO.wmax * GRAU);
     el.dif.value = 0;
-    definirRodas(est.wl, est.wr, null);
+    reaplicar(null);
+  }
+
+  // ---------------------------------------------------------------- modo de entrada
+
+  function definirEntrada(modo) {
+    est.entrada = modo;
+    const m1 = modo === 'rodas';
+    el.entradaRodas.checked = m1;
+    el.entradaRobo.checked = !m1;
+    // o grupo de saída só mostra o valor calculado
+    for (const e of [el.wl, el.wr, el.wlNum, el.wrNum]) e.disabled = !m1;
+    for (const e of [el.v, el.w, el.vNum, el.wNum]) e.disabled = m1;
+    el.blocoRodas.classList.toggle('saida', !m1);
+    el.blocoRobo.classList.toggle('saida', m1);
+    el.planoRodas.classList.toggle('saida', !m1);
+    el.planoRobo.classList.toggle('saida', m1);
+    const papel = (e, ehEntrada) => { e.textContent = ehEntrada ? 'entrada' : 'saída'; e.classList.toggle('e', ehEntrada); };
+    papel(el.papelRodas, m1);
+    papel(el.papelRobo, !m1);
+    papel(el.papelPlanoRodas, m1);
+    papel(el.papelPlanoRobo, !m1);
+    el.entradaSec.innerHTML = m1
+      ? 'Você comanda φ̇<sub>L</sub> e φ̇<sub>R</sub>; v e ω saem da cinemática direta (slides 15 a 17).'
+      : 'Você comanda v e ω; φ̇<sub>L</sub> e φ̇<sub>R</sub> saem da cinemática inversa (slide 18).';
+    el.planosSub.textContent = m1 ? 'arraste o ponto no espaço das rodas' : 'arraste o ponto no espaço do robô';
+    // histórico: o modo 1 mostra v e ω; o modo 2, as rodas; o erro dos modelos fica nos dois
+    el.serieRodas.hidden = m1;
+    el.serieV.hidden = !m1;
+    el.serieW.hidden = !m1;
+    el.series.classList.toggle('modo-rodas', m1);
+    el.historicoSub.innerHTML = m1 ? 'últimos 20 s · saídas do modo 1: v e ω' : 'últimos 20 s · saídas do modo 2: φ̇<sub>L</sub> e φ̇<sub>R</sub>';
+    el.dica.innerHTML = (m1
+      ? 'Teclado: <kbd>↑</kbd><kbd>↓</kbd> mudam as duas rodas juntas, <kbd>←</kbd><kbd>→</kbd> uma contra a outra, '
+      : 'Teclado: <kbd>↑</kbd><kbd>↓</kbd> mudam v, <kbd>←</kbd><kbd>→</kbd> mudam ω, ') +
+      '<kbd>espaço</kbd> pausa, <kbd>0</kbd> para, <kbd>R</kbd> reinicia.';
+    atualizarControles(null);
+    sujo.planos = sujo.series = true;
   }
 
   // Δt: slider em escala logarítmica de 0,001 s a 2 s
@@ -1159,6 +1241,7 @@
   // ---------------------------------------------------------------- eventos
 
   function ligar() {
+    for (const e of [el.entradaRodas, el.entradaRobo]) e.addEventListener('change', () => { if (e.checked) definirEntrada(e.value); });
     el.modoDif.addEventListener('change', () => { est.ativo.diferencial = el.modoDif.checked; sujo.series = true; });
     el.modoInc.addEventListener('change', () => { est.ativo.incremental = el.modoInc.checked; sujo.series = true; });
     el.rodar.addEventListener('click', alternar);
@@ -1173,25 +1256,27 @@
     el.wlNum.addEventListener('input', () => { const x = lerNumero(el.wlNum); if (x !== null) definirRodas(x * RAD, est.wr, el.wlNum); });
     el.wrNum.addEventListener('input', () => { const x = lerNumero(el.wrNum); if (x !== null) definirRodas(est.wl, x * RAD, el.wrNum); });
     // robô (inversa)
-    el.v.addEventListener('input', () => definirRobo(Number(el.v.value), est.w, el.v));
-    el.w.addEventListener('input', () => definirRobo(est.v, Number(el.w.value) * RAD, el.w));
-    el.vNum.addEventListener('input', () => { const x = lerNumero(el.vNum); if (x !== null) definirRobo(x, est.w, el.vNum); });
-    el.wNum.addEventListener('input', () => { const x = lerNumero(el.wNum); if (x !== null) definirRobo(est.v, x * RAD, el.wNum); });
+    el.v.addEventListener('input', () => definirRobo(Number(el.v.value), est.wCmd, el.v));
+    el.w.addEventListener('input', () => definirRobo(est.vCmd, Number(el.w.value) * RAD, el.w));
+    el.vNum.addEventListener('input', () => { const x = lerNumero(el.vNum); if (x !== null) definirRobo(x, est.wCmd, el.vNum); });
+    el.wNum.addEventListener('input', () => { const x = lerNumero(el.wNum); if (x !== null) definirRobo(est.vCmd, x * RAD, el.wNum); });
     // ao sair de um campo numérico, ele volta a mostrar o valor efetivo (que pode ter saturado)
     for (const e of [el.wlNum, el.wrNum, el.vNum, el.wNum]) e.addEventListener('change', () => atualizarControles(null));
     // idem para os sliders ao soltar (o de v ou ω pode ter pedido mais do que as rodas dão)
     for (const e of [el.wl, el.wr, el.v, el.w]) e.addEventListener('change', () => atualizarControles(null));
 
     $('btn-parar').addEventListener('click', () => definirRodas(0, 0, null));
-    $('btn-reta').addEventListener('click', () => definirRobo(Math.abs(est.v) > 1e-6 ? est.v : 0.2, 0, null));
-    $('btn-girar').addEventListener('click', () => definirRobo(0, Math.abs(est.w) > 1e-6 ? est.w : 30 * RAD, null));
+    // "reta" iguala as rodas e "girar" as põe opostas (pelo raio nominal), nos dois modos
+    $('btn-reta').addEventListener('click', () => definirRobo(Math.abs(est.vCmd) > 1e-6 ? est.vCmd : 0.2, 0, null));
+    $('btn-girar').addEventListener('click', () => definirRobo(0, Math.abs(est.wCmd) > 1e-6 ? est.wCmd : 30 * RAD, null));
 
+    // a diferença de diâmetro não muda as rodas comandadas, só o que o robô executa
     el.dif.addEventListener('input', () => { est.dD = Number(el.dif.value) / 1000; recalcularRobo(el.dif); });
     $('btn-dif-zerar').addEventListener('click', () => { el.dif.value = 0; est.dD = 0; recalcularRobo(null); });
 
-    el.pD.addEventListener('input', () => { const x = lerNumero(el.pD); if (x !== null && x >= 20 && x <= 600) { est.D = x / 1000; recalcularRobo(el.pD); } });
-    el.pL.addEventListener('input', () => { const x = lerNumero(el.pL); if (x !== null && x >= 50 && x <= 1500) { est.L = x / 1000; recalcularRobo(el.pL); } });
-    el.pWmax.addEventListener('input', () => { const x = lerNumero(el.pWmax); if (x !== null && x >= 10 && x <= 1440) { est.wmax = x * RAD; definirRodas(est.wl, est.wr, el.pWmax); } });
+    el.pD.addEventListener('input', () => { const x = lerNumero(el.pD); if (x !== null && x >= 20 && x <= 600) { est.D = x / 1000; reaplicar(el.pD); } });
+    el.pL.addEventListener('input', () => { const x = lerNumero(el.pL); if (x !== null && x >= 50 && x <= 1500) { est.L = x / 1000; reaplicar(el.pL); } });
+    el.pWmax.addEventListener('input', () => { const x = lerNumero(el.pWmax); if (x !== null && x >= 10 && x <= 1440) { est.wmax = x * RAD; reaplicar(el.pWmax); } });
     $('btn-p3dx').addEventListener('click', restaurarP3DX);
 
     el.pDt.addEventListener('input', () => definirDt(dtDoSlider(Number(el.pDt.value)), el.pDt));
@@ -1243,13 +1328,15 @@
     document.addEventListener('keydown', (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.target.closest && e.target.closest('input, select, textarea, button, summary')) return;
-      const dv = 0.02, dw = 5 * RAD;
+      // modo 1: as setas mexem nas rodas (juntas ou uma contra a outra); modo 2: em v e ω
+      const dv = 0.02, dw = 5 * RAD, dr = 5 * RAD;
+      const m1 = est.entrada === 'rodas';
       switch (e.key) {
         case ' ': alternar(); break;
-        case 'ArrowUp': definirRobo(est.v + dv, est.w, null); break;
-        case 'ArrowDown': definirRobo(est.v - dv, est.w, null); break;
-        case 'ArrowLeft': definirRobo(est.v, est.w + dw, null); break;
-        case 'ArrowRight': definirRobo(est.v, est.w - dw, null); break;
+        case 'ArrowUp': if (m1) definirRodas(est.wl + dr, est.wr + dr, null); else definirRobo(est.vCmd + dv, est.wCmd, null); break;
+        case 'ArrowDown': if (m1) definirRodas(est.wl - dr, est.wr - dr, null); else definirRobo(est.vCmd - dv, est.wCmd, null); break;
+        case 'ArrowLeft': if (m1) definirRodas(est.wl - dr, est.wr + dr, null); else definirRobo(est.vCmd, est.wCmd + dw, null); break;
+        case 'ArrowRight': if (m1) definirRodas(est.wl + dr, est.wr - dr, null); else definirRobo(est.vCmd, est.wCmd - dw, null); break;
         case '0': definirRodas(0, 0, null); break;
         case 'r': case 'R': reiniciar(); sujo.series = true; break;
         default: return;
@@ -1279,10 +1366,11 @@
   ligar();
   definirDt(est.dt);
   reiniciar();
+  definirEntrada('rodas');
   definirRodas(60 * RAD, 70 * RAD, null); // abre andando, com as rodas do exemplo do slide 27
   atualizarBotaoRodar();
   requestAnimationFrame(quadro);
 
   // ganchos para inspeção pelo console (e para os testes no navegador)
-  window.simulador = { est, vista, definirRodas, definirRobo, aplicarExemplo, reiniciar, geometria };
+  window.simulador = { est, vista, definirRodas, definirRobo, definirEntrada, aplicarExemplo, reiniciar, geometria };
 })();

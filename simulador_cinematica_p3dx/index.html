@@ -33,9 +33,19 @@
 
 <main class="painel">
 
-  <!-- Esquerda: velocidades. Mexer nas rodas recalcula v e ω (direta); mexer em v e ω recalcula as rodas (inversa). -->
+  <!-- Esquerda: velocidades. No modo 1 as rodas são a entrada e v, ω saem da direta; no modo 2 v, ω são a entrada e as rodas saem da inversa. -->
   <aside class="cartao comandos" aria-label="Velocidades">
-    <h2>Rodas <span class="seta">→</span> robô <small>cinemática direta</small></h2>
+    <fieldset class="entrada">
+      <legend>Entrada</legend>
+      <div class="segmentado">
+        <label><input type="radio" name="entrada" id="entrada-rodas" value="rodas" checked><span>1 · Rodas → robô</span></label>
+        <label><input type="radio" name="entrada" id="entrada-robo" value="robo"><span>2 · Robô → rodas</span></label>
+      </div>
+      <p class="sec" id="entrada-sec"></p>
+    </fieldset>
+
+    <div class="bloco" id="bloco-rodas">
+    <h2>Rodas <small>φ̇<sub>L</sub>, φ̇<sub>R</sub></small><span class="papel" id="papel-rodas"></span></h2>
 
     <div class="controle cor-wl">
       <div class="linha-rotulo">
@@ -54,8 +64,10 @@
       <div class="trilho"><input type="range" id="wr" min="-360" max="360" step="1" value="0" aria-label="φ̇ R em graus por segundo"></div>
       <p class="sec" id="wr-sec"></p>
     </div>
+    </div>
 
-    <h2 class="separado">Robô <span class="seta">→</span> rodas <small>cinemática inversa</small></h2>
+    <div class="bloco" id="bloco-robo">
+    <h2 class="separado">Robô <small>v, ω</small><span class="papel" id="papel-robo"></span></h2>
 
     <div class="controle cor-v">
       <div class="linha-rotulo">
@@ -74,6 +86,7 @@
       <div class="trilho"><input type="range" id="w" min="-180" max="180" step="0.1" value="0" aria-label="ω em graus por segundo"></div>
       <p class="sec" id="w-sec"></p>
     </div>
+    </div>
 
     <p class="aviso" id="aviso-saturacao" hidden>Roda no limite: o comando foi reduzido mantendo o raio de curva.</p>
 
@@ -82,7 +95,7 @@
       <button type="button" id="btn-reta">Reta</button>
       <button type="button" id="btn-girar">Girar no lugar</button>
     </div>
-    <p class="dica">Teclado: <kbd>↑</kbd><kbd>↓</kbd> mudam v, <kbd>←</kbd><kbd>→</kbd> mudam ω, <kbd>espaço</kbd> pausa, <kbd>0</kbd> para, <kbd>R</kbd> reinicia.</p>
+    <p class="dica" id="dica-teclado"></p>
   </aside>
 
   <!-- Centro: o robô no plano -->
@@ -175,23 +188,23 @@
 </main>
 
 <section class="cartao graficos" aria-label="Cinemática direta e inversa">
-  <h2>Cinemática direta ⇄ inversa <small>arraste o ponto em qualquer um dos dois gráficos</small></h2>
+  <h2>Cinemática direta ⇄ inversa <small id="planos-sub"></small></h2>
   <div class="planos">
     <figure>
       <canvas id="plano-rodas" aria-label="Plano das rodas: φ̇ L no eixo x, φ̇ R no eixo y"></canvas>
-      <figcaption>Espaço das rodas (φ̇<sub>L</sub>, φ̇<sub>R</sub>). As retas tracejadas passam pelo ponto atual: <span class="cor-v-txt">v constante</span> e <span class="cor-w-txt">ω constante</span>.</figcaption>
+      <figcaption><span class="papel" id="papel-plano-rodas"></span> Espaço das rodas (φ̇<sub>L</sub>, φ̇<sub>R</sub>). As retas tracejadas passam pelo ponto atual: <span class="cor-v-txt">v constante</span> e <span class="cor-w-txt">ω constante</span>.</figcaption>
     </figure>
     <div class="matrizes" id="matrizes"></div>
     <figure>
       <canvas id="plano-robo" aria-label="Plano do robô: ω no eixo x, v no eixo y"></canvas>
-      <figcaption>Espaço do robô (ω, v). O losango é tudo o que as rodas alcançam; as tracejadas são <span class="cor-wl-txt">φ̇<sub>L</sub> constante</span> e <span class="cor-wr-txt">φ̇<sub>R</sub> constante</span>.</figcaption>
+      <figcaption><span class="papel" id="papel-plano-robo"></span> Espaço do robô (ω, v). O losango é tudo o que as rodas alcançam; as tracejadas são <span class="cor-wl-txt">φ̇<sub>L</sub> constante</span> e <span class="cor-wr-txt">φ̇<sub>R</sub> constante</span>. No modo 2 com rodas diferentes, o anel vazio é o comando e o ponto cheio é o que o robô executa.</figcaption>
     </figure>
   </div>
 </section>
 
 <section class="cartao historico" aria-label="Histórico no tempo">
-  <h2>Histórico no tempo <small>últimos 20 s</small></h2>
-  <div class="series">
+  <h2>Histórico no tempo <small id="historico-sub"></small></h2>
+  <div class="series" id="series">
     <canvas id="serie-rodas" aria-label="φ̇ L e φ̇ R no tempo"></canvas>
     <canvas id="serie-v" aria-label="v no tempo"></canvas>
     <canvas id="serie-w" aria-label="ω no tempo"></canvas>
@@ -210,9 +223,9 @@
     </div>
     <div>
       <h3>Robô → rodas (inversa, slide 18)</h3>
-      <p class="eq">φ̇<sub>L</sub> = (v − ω l) / r<sub>L</sub></p>
-      <p class="eq">φ̇<sub>R</sub> = (v + ω l) / r<sub>R</sub></p>
-      <p>Se uma roda passar do limite, as duas são reduzidas na mesma proporção, o que mantém R = v/ω.</p>
+      <p class="eq">φ̇<sub>L</sub> = (v − ω l) / r</p>
+      <p class="eq">φ̇<sub>R</sub> = (v + ω l) / r</p>
+      <p>A inversa usa o raio nominal r: quem comanda não sabe da diferença de diâmetro. Com rodas diferentes, o robô executa o v e o ω que a direta dá com r<sub>L</sub> e r<sub>R</sub>, e não o comando. Se uma roda passar do limite, as duas são reduzidas na mesma proporção, o que mantém R = v/ω.</p>
     </div>
     <div>
       <h3>Modelo diferencial (Euler, slides 22 e 29)</h3>

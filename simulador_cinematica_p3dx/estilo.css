@@ -220,6 +220,66 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .cartao h2 .seta { color: var(--texto); }
 h2.separado { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--borda); }
 
+/* seletor de entrada: modo 1 (rodas → robô) ou modo 2 (robô → rodas) */
+.entrada { margin: 0 0 14px; padding: 0 0 14px; border: 0; border-bottom: 1px solid var(--borda); }
+.entrada legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+.segmentado {
+  clear: both;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.segmentado label {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 6px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+}
+.segmentado label + label { border-left: 1px solid var(--borda); }
+.segmentado input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.segmentado label:has(input:checked) { background: var(--destaque); color: var(--sobre-destaque); }
+.segmentado label:has(input:focus-visible) { outline: 2px solid var(--destaque); outline-offset: 2px; }
+.entrada .sec { margin-top: 6px; }
+
+/* papel de cada grupo no modo atual: entrada (comandada) ou saída (calculada) */
+.papel {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 7px;
+  border: 1px solid var(--borda);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 16px;
+  text-transform: uppercase;
+  vertical-align: 1px;
+  color: var(--texto-suave);
+}
+.papel.e { border-color: var(--destaque); background: var(--destaque); color: var(--sobre-destaque); }
+figcaption .papel { margin: 0 4px 0 0; }
+/* grupo de saída: os controles só mostram o valor calculado */
+.bloco.saida .campo input { border-style: dashed; background: transparent; }
+.campo input:disabled { opacity: 1; color: var(--texto); -webkit-text-fill-color: var(--texto); }
+input[type="range"]:disabled { cursor: default; }
+
 .controle { margin-bottom: 12px; }
 .linha-rotulo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .linha-rotulo label { font-weight: 600; }
@@ -403,6 +463,7 @@ code { padding: 0 3px; border-radius: 4px; background: var(--campo); font: 12px 
   cursor: crosshair;
   touch-action: none;
 }
+.planos canvas.saida { cursor: default; }
 figcaption { max-width: 440px; margin: 6px auto 0; color: var(--texto-suave); font-size: 12px; }
 
 .matrizes { display: grid; justify-items: center; gap: 16px; min-width: 0; overflow-x: auto; font-variant-numeric: tabular-nums; }
@@ -424,6 +485,9 @@ figcaption { max-width: 440px; margin: 6px auto 0; color: var(--texto-suave); fo
 
 .series { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .series canvas { display: block; width: 100%; height: 170px; border-radius: 8px; background: var(--fundo-cena); }
+.series canvas[hidden] { display: none; }
+/* modo 1: v e ω lado a lado e o erro dos modelos na linha de baixo, inteiro */
+.series.modo-rodas #serie-erro { grid-column: 1 / -1; }
 
 /* ---------- equações e rodapé ---------- */
 .equacoes summary { font-weight: 700; cursor: pointer; }
