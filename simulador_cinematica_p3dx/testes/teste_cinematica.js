@@ -7,6 +7,8 @@
  *    diâmetros diferentes, saturação que preserva o raio de curva, ICC.
  * 3. Ordem de convergência contra o arco exato: Euler (diferencial) cai com Δt,
  *    o incremental cai com Δt².
+ * 4. Odometria por encoders (slide 43): contagem de pulsos, igualdade com o incremental quando
+ *    não há erro, e o desvio entre o robô real (roda maior) e a odometria (raio nominal).
  *
  * Uso (na pasta do simulador):
  *   python testes/referencia_professor.py
@@ -109,6 +111,45 @@ confere(maxIda < 1e-12, `direta -> inversa devolve as rodas (erro máx. ${maxIda
   }
   confere(erroFinal('incremental', 0.5) < erroFinal('diferencial', 0.5),
     'com o mesmo Δt, o incremental fica mais perto do arco exato que o diferencial (Euler)');
+}
+
+// 4. Odometria por encoders (slide 43)
+{
+  confere(C.pulsos(2 * Math.PI, 500) === 500 && C.pulsos(-1e-6, 500) === -1 && C.pulsos(deg(0.7), 500) === 0,
+    'encoder: uma volta = N pulsos; o ângulo negativo conta para baixo; abaixo de um pulso não conta');
+
+  // sem erro e com resolução altíssima, a odometria coincide com o modelo incremental
+  const wl = deg(50), wr = deg(80), dt = 0.1, N = 1e9;
+  const { v, w } = C.direta(wl, wr, r, r, l);
+  let P = [0, 0, 0], Q = [0, 0, 0], aL = 0, aR = 0, pL = 0, pR = 0, maxD = 0;
+  for (let k = 0; k < 300; k++) {
+    aL += wl * dt; aR += wr * dt;
+    const nL = C.pulsos(aL, N), nR = C.pulsos(aR, N);
+    const dsl = ((nL - pL) * 2 * Math.PI / N) * r, dsr = ((nR - pR) * 2 * Math.PI / N) * r;
+    pL = nL; pR = nR;
+    P = C.passoOdometria(P, dsl, dsr, l);
+    Q = C.passoIncremental(Q, v, w, dt);
+    maxD = Math.max(maxD, Math.hypot(P[0] - Q[0], P[1] - Q[1]));
+  }
+  confere(maxD < 1e-6, `odometria sem erro = modelo incremental (diferença máx. ${(maxD * 1000).toExponential(2)} mm)`);
+
+  // rodas iguais, direita 2 mm maior: a odometria (raio nominal) acha que andou reto; o robô real curva
+  const n = 600, wq = deg(100);
+  let O = [0, 0, 0], a = 0, p = 0;
+  for (let k = 0; k < n; k++) {
+    a += wq * dt;
+    const c = C.pulsos(a, 500);
+    const ds = ((c - p) * 2 * Math.PI / 500) * r;
+    p = c;
+    O = C.passoOdometria(O, ds, ds, l);
+  }
+  const real = C.simular('exato', [0, 0, 0], wq, wq, r, r + 0.001, l, dt, n).P;
+  const Rreal = (l * (r + r + 0.001)) / 0.001;
+  confere(O[1] === 0 && O[2] === 0, 'pulsos iguais nas duas rodas: a odometria fica em linha reta (y = 0, θ = 0)');
+  console.log(`       60 s a 100 °/s, direita +2 mm: real (${real[0].toFixed(3)}; ${real[1].toFixed(3)}) m, ` +
+    `odometria (${O[0].toFixed(3)}; ${O[1].toFixed(3)}) m, R real = ${Rreal.toFixed(2)} m`);
+  confere(Math.abs(Math.hypot(real[0], real[1] - Rreal) - Rreal) < 1e-9 && real[1] > 1,
+    'o robô real anda no círculo de raio l(r_L + r_R)/(r_R − r_L) e se afasta mais de 1 m da odometria');
 }
 
 console.log(falhas ? `\n${falhas} falha(s)` : '\ntodos os testes passaram');

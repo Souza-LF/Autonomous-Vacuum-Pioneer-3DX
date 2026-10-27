@@ -9,6 +9,9 @@
  * robô executa um v e um ω diferentes do comando.
  * Os dois modelos (e o arco exato) recebem sempre os mesmos v e ω a cada passo Δt,
  * então podem ser comparados a qualquer momento.
+ * Odometria: o "robô real" anda pelo arco exato com os raios reais e o escorregamento de
+ * cada roda; a "odometria" só conta os pulsos dos encoders e integra com o raio nominal
+ * (slide 43). As duas são calculadas sempre; a caixa só decide se aparecem.
  */
 (function () {
   'use strict';
@@ -20,7 +23,8 @@
   const JANELA = 20;            // segundos mostrados no histórico
   const LIMITE_RASTRO = 80000;  // pontos guardados por trajetória
   const MODELOS = ['diferencial', 'incremental'];
-  const COR_MODELO = { diferencial: 'dif', incremental: 'inc', exato: 'exato' };
+  const COR_MODELO = { diferencial: 'dif', incremental: 'inc', exato: 'exato', real: 'real', odo: 'odo' };
+  const TRAJETORIAS = ['diferencial', 'incremental', 'exato', 'real', 'odo'];
   const PADRAO = {
     D: C.P3DX.diametroRoda / 1000,
     L: C.P3DX.distanciaRodas / 1000,
@@ -38,6 +42,9 @@
     vCmd: 0, wCmd: 0,     // v e ω que as rodas dão com o raio nominal: o comando, no modo 2
     ativo: { diferencial: true, incremental: false },
     exibir: { exato: false, icc: true, amostras: true, seguir: false },
+    // odometria: pulsos por volta de cada encoder e escorregamento de cada roda (fração do giro que não vira chão)
+    odo: { ativo: false, pulsos: 500, escL: 0, escR: 0 },
+    enc: { angL: 0, angR: 0, pL: 0, pR: 0 }, // ângulo que cada roda girou e último pulso contado
     rodando: true, fim: false, t: 0, k: 0, acumulado: 0,
     pose: {}, rastro: {}, ang: { e: 0, d: 0 }, hist: [],
     saturouAte: 0,
@@ -65,10 +72,12 @@
     dif: $('dif-diametro'), difSec: $('dif-sec'),
     pD: $('p-diametro'), pL: $('p-distancia'), pWmax: $('p-wmax'), pDerivados: $('p-derivados'),
     pDt: $('p-dt'), pDtNum: $('p-dt-num'), pEscala: $('p-escala'), pTmax: $('p-tmax'),
+    dtHist: $('dt-hist'), dtHistValor: $('dt-hist-valor'), atalhosDt: document.querySelectorAll('.atalhos-dt button'),
     pX0: $('p-x0'), pY0: $('p-y0'), pTh0: $('p-th0'),
     exExato: $('ex-exato'), exIcc: $('ex-icc'), exAmostras: $('ex-amostras'), exSeguir: $('ex-seguir'),
     planoRodas: $('plano-rodas'), planoRobo: $('plano-robo'), matrizes: $('matrizes'),
-    serieRodas: $('serie-rodas'), serieV: $('serie-v'), serieW: $('serie-w'), serieErro: $('serie-erro'),
+    serieRodas: $('serie-rodas'), serieV: $('serie-v'), serieW: $('serie-w'), serieErro: $('serie-erro'), serieOdo: $('serie-odo'),
+    odoAtivo: $('odo-ativo'), odoPulsos: $('odo-pulsos'), odoEscL: $('odo-esc-l'), odoEscR: $('odo-esc-r'), odoSec: $('odo-sec'),
   };
 
   // ---------------------------------------------------------------- utilitários
@@ -98,7 +107,7 @@
   function lerCores() {
     const s = getComputedStyle(document.documentElement);
     for (const nome of ['texto', 'texto-suave', 'borda', 'painel', 'fundo-cena', 'grade', 'grade-forte',
-      'dif', 'dif-corpo', 'inc', 'inc-corpo', 'exato', 'wl', 'wr', 'v', 'w',
+      'dif', 'dif-corpo', 'inc', 'inc-corpo', 'exato', 'real', 'real-corpo', 'odo', 'wl', 'wr', 'v', 'w',
       'eixo-x', 'eixo-y', 'orientacao', 'destaque']) {
       cor[nome] = s.getPropertyValue('--' + nome).trim();
     }
@@ -292,7 +301,7 @@
 
   function reiniciar() {
     const P0 = lerPose0();
-    for (const m of ['diferencial', 'incremental', 'exato']) {
+    for (const m of TRAJETORIAS) {
       est.pose[m] = P0.slice();
       est.rastro[m] = [[P0[0], P0[1]]];
     }
@@ -300,6 +309,7 @@
     est.k = 0;
     est.acumulado = 0;
     est.ang = { e: 0, d: 0 };
+    est.enc = { angL: 0, angR: 0, pL: 0, pR: 0 };
     est.hist = [];
     est.fim = false;
     atualizarLimiteTempo();
@@ -312,8 +322,9 @@
     for (const m of ['diferencial', 'incremental', 'exato']) {
       const anterior = est.pose[m];
       est.pose[m] = C.PASSOS[m](anterior, est.v, est.w, est.dt);
-      registrarRastro(m, anterior);
+      registrarRastro(m, anterior, m === 'exato' ? { v: est.v, w: est.w } : null);
     }
+    passoOdometria();
     est.ang.e += est.wl * est.dt;
     est.ang.d += est.wr * est.dt;
     est.k += 1;
@@ -326,14 +337,37 @@
     }
   }
 
-  function registrarRastro(m, anterior) {
+  // Robô real e odometria (slide 43). O real anda pelo arco exato com os raios reais, e cada roda
+  // só leva para o chão (1 − escorregamento) do que girou. Os encoders medem o giro da roda, com ou
+  // sem escorregamento, em pulsos inteiros; a odometria converte pulsos em distância pelo raio nominal.
+  function passoOdometria() {
+    const { rl, rr, l } = geometria();
+    const real = C.direta(est.wl * (1 - est.odo.escL), est.wr * (1 - est.odo.escR), rl, rr, l);
+    const anterior = est.pose.real;
+    est.pose.real = C.passoExato(anterior, real.v, real.w, est.dt);
+    registrarRastro('real', anterior, real);
+
+    const e = est.enc, N = est.odo.pulsos, porPulso = (2 * Math.PI / N) * (est.D / 2);
+    e.angL += est.wl * est.dt;
+    e.angR += est.wr * est.dt;
+    const nL = C.pulsos(e.angL, N), nR = C.pulsos(e.angR, N);
+    const dsl = (nL - e.pL) * porPulso, dsr = (nR - e.pR) * porPulso;
+    e.pL = nL;
+    e.pR = nR;
+    const antes = est.pose.odo;
+    est.pose.odo = C.passoOdometria(antes, dsl, dsr, est.L / 2);
+    registrarRastro('odo', antes, null);
+  }
+
+  // arco: { v, w } quando a trajetória é um arco exato, para desenhá-la curva entre os passos
+  function registrarRastro(m, anterior, arco) {
     const r = est.rastro[m];
     const P = est.pose[m];
-    if (m === 'exato') {
-      // o arco exato é desenhado curvo: pontos intermediários a cada ~2° de giro
-      const n = Math.min(64, Math.ceil(Math.abs(est.w * est.dt) / (2 * RAD)));
+    if (arco) {
+      // pontos intermediários a cada ~2° de giro
+      const n = Math.min(64, Math.ceil(Math.abs(arco.w * est.dt) / (2 * RAD)));
       for (let i = 1; i < n; i++) {
-        const Q = C.passoExato(anterior, est.v, est.w, (est.dt * i) / n);
+        const Q = C.passoExato(anterior, arco.v, arco.w, (est.dt * i) / n);
         r.push([Q[0], Q[1]]);
       }
     }
@@ -352,9 +386,17 @@
     if (!forcar && u && est.t - u.t < 0.02) return;
     const ex = est.pose.exato;
     const desvio = (m) => Math.hypot(est.pose[m][0] - ex[0], est.pose[m][1] - ex[1]);
-    h.push({ t: est.t, wl: est.wl, wr: est.wr, v: est.v, w: est.w, eDif: desvio('diferencial'), eInc: desvio('incremental') });
+    h.push({ t: est.t, wl: est.wl, wr: est.wr, v: est.v, w: est.w, eDif: desvio('diferencial'), eInc: desvio('incremental'),
+      eOdo: desvioOdometria().d });
     while (h.length > 2 && h[1].t < est.t - JANELA - 1) h.shift();
     sujo.series = true;
+  }
+
+  // Quanto a odometria se afastou do robô real: distância e diferença de orientação (entre −180° e 180°)
+  function desvioOdometria() {
+    const a = est.pose.real, b = est.pose.odo;
+    const dth = Math.atan2(Math.sin(b[2] - a[2]), Math.cos(b[2] - a[2]));
+    return { d: Math.hypot(b[0] - a[0], b[1] - a[1]), dth };
   }
 
   function atualizarBotaoRodar() {
@@ -409,8 +451,8 @@
   function enquadrar() {
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     const incluir = (x, y) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); };
-    for (const m of [...MODELOS, 'exato']) {
-      if (m === 'exato' ? !est.exibir.exato : !est.ativo[m]) continue;
+    for (const m of TRAJETORIAS) {
+      if (!visivel(m)) continue;
       for (const p of est.rastro[m]) incluir(p[0], p[1]);
       incluir(est.pose[m][0], est.pose[m][1]);
     }
@@ -418,12 +460,23 @@
     enquadrarCaixa(x0, x1, y0, y1);
   }
 
+  function visivel(m) {
+    if (m === 'exato') return est.exibir.exato;
+    if (m === 'real' || m === 'odo') return est.odo.ativo;
+    return est.ativo[m];
+  }
+
   function modeloPrincipal() {
     return MODELOS.find((m) => est.ativo[m]) || null;
   }
 
+  // quem a câmera acompanha: o modelo principal ou, sem modelo marcado, o robô real da odometria
+  function alvoCamera() {
+    return modeloPrincipal() || (est.odo.ativo ? 'real' : null);
+  }
+
   function roboDentro() {
-    const m = modeloPrincipal();
+    const m = alvoCamera();
     if (!m) return true;
     const [px, py] = paraTela(est.pose[m][0], est.pose[m][1]);
     return px >= 40 && px <= vista.w - 40 && py >= 40 && py <= vista.h - 40;
@@ -431,7 +484,7 @@
 
   // Câmera: segue o robô, ou só o mantém à vista quando ele sai pela borda
   function ajustarCamera() {
-    const m = modeloPrincipal();
+    const m = alvoCamera();
     if (!m || arraste) return;
     const P = est.pose[m];
     if (est.exibir.seguir) {
@@ -469,10 +522,19 @@
     // os pontos de cada passo só fazem sentido enquanto o rastro guarda todos os passos (Δt ≥ 0,01 s)
     const pontos = est.exibir.amostras && est.dt >= 0.01;
     for (const m of MODELOS) if (est.ativo[m]) desenharRastro(ctx, est.rastro[m], cor[COR_MODELO[m]], null, pontos);
+    if (est.odo.ativo) {
+      desenharRastro(ctx, est.rastro.real, cor.real, null, false);
+      desenharRastro(ctx, est.rastro.odo, cor.odo, [8, 5], false);
+    }
 
     const principal = modeloPrincipal();
     if (principal && est.exibir.icc) desenharPrevisao(ctx, est.pose[principal]);
     if (est.exibir.exato) desenharRobo(ctx, est.pose.exato, 'exato');
+    if (est.odo.ativo) {
+      desenharRobo(ctx, est.pose.real, 'real');
+      desenharRobo(ctx, est.pose.odo, 'odo');
+      desenharDesvio(ctx);
+    }
     // o diferencial por cima, como nos slides (robô amarelo)
     for (const m of ['incremental', 'diferencial']) if (est.ativo[m]) desenharRobo(ctx, est.pose[m], m);
     if (principal && est.exibir.icc) desenharVetores(ctx, est.pose[principal]);
@@ -590,15 +652,17 @@
       });
       ctx.closePath();
     };
-    const fantasma = modelo === 'exato';
-    const corCorpo = modelo === 'incremental' ? cor['inc-corpo'] : cor['dif-corpo'];
+    // o arco exato e a odometria são só contornos tracejados: não são um robô de verdade
+    const fantasma = modelo === 'exato' || modelo === 'odo';
+    const corFantasma = modelo === 'odo' ? cor.odo : cor.exato;
+    const corCorpo = { incremental: cor['inc-corpo'], real: cor['real-corpo'] }[modelo] || cor['dif-corpo'];
 
     // corpo do P3-DX (slide 26)
     poligono(C.P3DX.corpo[0].map((v) => v / 1000), C.P3DX.corpo[1].map((v) => v / 1000));
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = modelo === 'odo' ? 1.8 : 1.2;
     if (fantasma) {
       ctx.setLineDash([4, 3]);
-      ctx.strokeStyle = cor.exato;
+      ctx.strokeStyle = corFantasma;
     } else {
       ctx.fillStyle = corCorpo;
       ctx.fill();
@@ -613,7 +677,7 @@
       const yc = lado * l;
       poligono([D / 2, D / 2, -D / 2, -D / 2], [yc - lw / 2, yc + lw / 2, yc + lw / 2, yc - lw / 2]);
       if (fantasma) {
-        ctx.strokeStyle = cor.exato;
+        ctx.strokeStyle = corFantasma;
         ctx.stroke();
         continue;
       }
@@ -641,11 +705,37 @@
     // ponto médio e orientação, como na figura dos slides (ponto vermelho e traço de 0,12 m)
     const [cx, cy] = T(0, 0);
     const [hx, hy] = T(0.12, 0);
-    ctx.strokeStyle = fantasma ? cor.exato : cor.orientacao;
+    ctx.strokeStyle = fantasma ? corFantasma : cor.orientacao;
     ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(hx, hy); ctx.stroke();
-    ctx.fillStyle = fantasma ? cor.exato : cor.orientacao;
+    ctx.fillStyle = fantasma ? corFantasma : cor.orientacao;
     ctx.beginPath(); ctx.arc(cx, cy, 3.5, 0, 2 * Math.PI); ctx.fill();
+  }
+
+  // Segmento entre o robô real e a odometria, com o tamanho do desvio escrito no meio
+  function desenharDesvio(ctx) {
+    const a = est.pose.real, b = est.pose.odo;
+    const { d } = desvioOdometria();
+    const [x0, y0] = paraTela(a[0], a[1]);
+    const [x1, y1] = paraTela(b[0], b[1]);
+    if (Math.hypot(x1 - x0, y1 - y0) < 4) return;
+    ctx.strokeStyle = cor.odo;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    ctx.setLineDash([]);
+    const texto = d >= 1 ? `${num(d, 2)} m` : `${num(d * 1000, 0)} mm`;
+    ctx.font = `600 12px ${fonte.ui}`;
+    const larg = ctx.measureText(texto).width;
+    let lx = (x0 + x1) / 2 + 8;
+    const ly = (y0 + y1) / 2 - 6;
+    if (lx + larg + 6 > vista.w) lx = (x0 + x1) / 2 - 8 - larg; // perto da borda direita: escreve do outro lado
+    ctx.fillStyle = cor.painel;
+    ctx.globalAlpha = 0.85;
+    ctx.fillRect(lx - 3, ly - 12, larg + 6, 16);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = cor.odo;
+    ctx.fillText(texto, lx, ly);
   }
 
   // Seta entre dois pontos do mundo (origem + vetor)
@@ -761,7 +851,13 @@
     if (est.ativo.diferencial) linhas.push(linhaPose('diferencial', 'diferencial'));
     if (est.ativo.incremental) linhas.push(linhaPose('incremental', 'incremental'));
     if (est.exibir.exato) linhas.push(linhaPose('exato', 'arco exato'));
-    if (!est.ativo.diferencial && !est.ativo.incremental) linhas.push('<div class="linha suave">Marque um dos modelos no topo.</div>');
+    if (est.odo.ativo) {
+      linhas.push(linhaPose('real', 'robô real'));
+      linhas.push(linhaPose('odo', 'odometria'));
+      const { d, dth } = desvioOdometria();
+      linhas.push(`<div class="linha"><b>desvio da odometria: ${num(d * 1000, 1)} mm · Δθ = ${num(dth * GRAU, 2)}°</b></div>`);
+    }
+    if (!est.ativo.diferencial && !est.ativo.incremental && !est.odo.ativo) linhas.push('<div class="linha suave">Marque um dos modelos no topo.</div>');
     let curva;
     if (Math.abs(est.w) < 1e-9) curva = Math.abs(est.v) < 1e-9 ? 'parado' : 'linha reta (ω = 0, R = ∞)';
     else if (Math.abs(est.v) < 1e-9) curva = 'gira no lugar (v = 0, R = 0)';
@@ -1047,10 +1143,22 @@
     const c = prepararCanvas(cv);
     if (!c) return;
     const { ctx, w, h } = c;
-    const m = { esq: 50, dir: 10, topo: 24, base: 20 };
-    const W = w - m.esq - m.dir, H = h - m.topo - m.base;
     const t1 = Math.max(est.t, JANELA), t0 = t1 - JANELA;
     const dados = est.hist.filter((p) => p.t >= t0 - 0.05);
+    // a legenda fica ao lado do título; se não couber (gráfico estreito), desce para uma segunda linha
+    // e, se nem assim couber, usa o nome curto da série
+    const ultimo = dados[dados.length - 1];
+    const rotular = (curto) => linhas.map((L) => `${curto && L.curto ? L.curto : L.nome}${ultimo ? ' = ' + num(L.valor(ultimo), opcoes.casas) : ''}`);
+    ctx.font = `600 12px ${fonte.ui}`;
+    if (opcoes.tituloCurto && 8 + ctx.measureText(titulo).width > w - 8) titulo = opcoes.tituloCurto;
+    const larguraTitulo = ctx.measureText(titulo).width;
+    ctx.font = `11px ${fonte.ui}`;
+    const largura = (textos) => textos.reduce((s, t) => s + 14 + ctx.measureText(t).width + 28, 0) - 28;
+    let legendas = rotular(false);
+    const duasLinhas = 8 + larguraTitulo + 14 + largura(legendas) > w - 6;
+    if (duasLinhas && 8 + largura(legendas) > w - 6) legendas = rotular(true);
+    const m = { esq: 50, dir: 10, topo: duasLinhas ? 38 : 24, base: 20 };
+    const W = w - m.esq - m.dir, H = h - m.topo - m.base;
     let lo = Infinity, hi = -Infinity;
     for (const L of linhas) for (const p of dados) { const y = L.valor(p); lo = Math.min(lo, y); hi = Math.max(hi, y); }
     if (!Number.isFinite(lo)) { lo = 0; hi = 0; }
@@ -1109,17 +1217,16 @@
     ctx.textAlign = 'left';
     ctx.font = `600 12px ${fonte.ui}`;
     ctx.fillStyle = cor.texto;
-    ctx.fillText(titulo, m.esq, 15);
-    let x = m.esq + ctx.measureText(titulo).width + 14;
+    ctx.fillText(titulo, 8, 15);
+    let x = duasLinhas ? 8 : 8 + larguraTitulo + 14;
+    const yLeg = duasLinhas ? 31 : 15;
     ctx.font = `11px ${fonte.ui}`;
-    const ultimo = dados[dados.length - 1];
-    for (const L of linhas) {
-      const texto = `${L.nome}${ultimo ? ' = ' + num(L.valor(ultimo), opcoes.casas) : ''}`;
+    linhas.forEach((L, i) => {
       ctx.fillStyle = L.cor;
-      ctx.fillRect(x, 7, 10, 10);
+      ctx.fillRect(x, yLeg - 8, 10, 10);
       ctx.fillStyle = cor.texto;
-      x += textoIndice(ctx, texto, x + 14, 15, 'left') + 28;
-    }
+      x += textoIndice(ctx, legendas[i], x + 14, yLeg, 'left') + 28;
+    });
   }
 
   function desenharSeries() {
@@ -1134,9 +1241,25 @@
       { nome: 'ω', cor: cor.w, valor: (p) => p.w * GRAU },
     ], { minFaixa: 10, casas: 1 });
     const erros = [];
-    if (est.ativo.diferencial) erros.push({ nome: 'diferencial', cor: cor.dif, valor: (p) => p.eDif * 1000 });
-    if (est.ativo.incremental) erros.push({ nome: 'incremental', cor: cor.inc, valor: (p) => p.eInc * 1000 });
-    serie(el.serieErro, 'Distância ao arco exato (mm)', erros, { minFaixa: 1, casas: 2, base0: true });
+    if (est.ativo.diferencial) erros.push({ nome: 'diferencial', curto: 'dif.', cor: cor.dif, valor: (p) => p.eDif * 1000 });
+    if (est.ativo.incremental) erros.push({ nome: 'incremental', curto: 'inc.', cor: cor.inc, valor: (p) => p.eInc * 1000 });
+    serie(el.serieErro, 'Distância ao arco exato (mm)', erros, { minFaixa: 1, casas: 2, base0: true, tituloCurto: 'Erro ao arco exato (mm)' });
+    serie(el.serieOdo, 'Desvio da odometria (mm)', [
+      { nome: 'real × odometria', curto: 'desvio', cor: cor.odo, valor: (p) => p.eOdo * 1000 },
+    ], { minFaixa: 1, casas: 1, base0: true });
+  }
+
+  // Quais gráficos aparecem: modo 1 mostra v e ω, modo 2 as rodas; o erro dos modelos sempre;
+  // o desvio da odometria quando ela está ligada. Todos numa linha só.
+  function atualizarSeries() {
+    const m1 = est.entrada === 'rodas';
+    el.serieRodas.hidden = m1;
+    el.serieV.hidden = !m1;
+    el.serieW.hidden = !m1;
+    el.serieOdo.hidden = !est.odo.ativo;
+    const n = [el.serieRodas, el.serieV, el.serieW, el.serieErro, el.serieOdo].filter((c) => !c.hidden).length;
+    el.series.style.setProperty('--colunas', n);
+    sujo.series = true;
   }
 
   // ---------------------------------------------------------------- exemplos dos slides
@@ -1187,6 +1310,50 @@
     el.pWmax.value = Math.round(PADRAO.wmax * GRAU);
     el.dif.value = 0;
     reaplicar(null);
+    definirOdometria();
+  }
+
+  // ---------------------------------------------------------------- odometria
+
+  // Lê a caixa e os campos da odometria; a resolução do encoder vira "mm de chão por pulso"
+  function definirOdometria() {
+    est.odo.ativo = el.odoAtivo.checked;
+    const N = lerNumero(el.odoPulsos);
+    if (N !== null && N >= 1) est.odo.pulsos = Math.round(N);
+    const eL = lerNumero(el.odoEscL), eR = lerNumero(el.odoEscR);
+    if (eL !== null) est.odo.escL = limitar(eL, 0, 90) / 100;
+    if (eR !== null) est.odo.escR = limitar(eR, 0, 90) / 100;
+    const mmPorPulso = (Math.PI * est.D * 1000) / est.odo.pulsos;
+    el.odoSec.innerHTML = `1 pulso = ${num(360 / est.odo.pulsos, 3)}° de roda = ${num(mmPorPulso, 2)} mm de chão (raio nominal). ` +
+      'O robô real usa os diâmetros reais (diferença de diâmetro, embaixo do mapa) e perde o escorregamento; ' +
+      'a odometria só conta pulsos e aplica Δs = (Δs<sub>r</sub> + Δs<sub>l</sub>)/2 e Δθ = (Δs<sub>r</sub> − Δs<sub>l</sub>)/(2l) (slide 43).';
+    atualizarSeries();
+  }
+
+  // Rodas iguais com a direita 2 mm maior: os pulsos saem iguais, a odometria acha que andou reto e o robô real curva
+  function exemploOdometria() {
+    restaurarP3DX();
+    el.pX0.value = 0; el.pY0.value = 0; el.pTh0.value = 0;
+    el.odoAtivo.checked = true;
+    el.odoEscL.value = 0; el.odoEscR.value = 0;
+    el.dif.value = 2;
+    est.dD = 0.002;
+    definirOdometria();
+    definirDt(0.1);
+    est.tmax = 60;
+    el.pTmax.value = 60;
+    est.escala = 5;
+    el.pEscala.value = '5';
+    est.ativo.diferencial = el.modoDif.checked = false;
+    est.ativo.incremental = el.modoInc.checked = false;
+    est.exibir.exato = el.exExato.checked = false;
+    definirEntrada('rodas');
+    reiniciar();
+    definirRodas(100 * RAD, 100 * RAD, null);
+    enquadrarCaixa(-0.3, 11, -0.5, 1.8);
+    est.rodando = true;
+    atualizarBotaoRodar();
+    sujo.series = true;
   }
 
   // ---------------------------------------------------------------- modo de entrada
@@ -1212,11 +1379,7 @@
       ? 'Você comanda φ̇<sub>L</sub> e φ̇<sub>R</sub>; v e ω saem da cinemática direta (slides 15 a 17).'
       : 'Você comanda v e ω; φ̇<sub>L</sub> e φ̇<sub>R</sub> saem da cinemática inversa (slide 18).';
     el.planosSub.textContent = m1 ? 'arraste o ponto no espaço das rodas' : 'arraste o ponto no espaço do robô';
-    // histórico: o modo 1 mostra v e ω; o modo 2, as rodas; o erro dos modelos fica nos dois
-    el.serieRodas.hidden = m1;
-    el.serieV.hidden = !m1;
-    el.serieW.hidden = !m1;
-    el.series.classList.toggle('modo-rodas', m1);
+    atualizarSeries();
     el.historicoSub.innerHTML = m1 ? 'últimos 20 s · saídas do modo 1: v e ω' : 'últimos 20 s · saídas do modo 2: φ̇<sub>L</sub> e φ̇<sub>R</sub>';
     el.dica.innerHTML = (m1
       ? 'Teclado: <kbd>↑</kbd><kbd>↓</kbd> mudam as duas rodas juntas, <kbd>←</kbd><kbd>→</kbd> uma contra a outra, '
@@ -1234,8 +1397,21 @@
     est.dt = limitar(dt, DT_MIN, DT_MAX);
     if (origem !== el.pDt) el.pDt.value = sliderDoDt(est.dt);
     if (origem !== el.pDtNum) el.pDtNum.value = est.dt;
+    if (origem !== el.dtHist) el.dtHist.value = sliderDoDt(est.dt);
+    el.dtHistValor.textContent = `${num(est.dt, est.dt < 0.1 ? 3 : 2)} s`;
+    for (const b of el.atalhosDt) b.classList.toggle('ativo', Math.abs(Number(b.dataset.dt) - est.dt) < 1e-9);
     atualizarLimiteTempo();
     atualizarControles(null);
+  }
+
+  // Mudança de Δt feita pela pessoa: recomeça da pose inicial e roda, para comparar os modelos desde o começo
+  // com o Δt novo (no meio do caminho, o erro acumulado com o Δt antigo continuaria no gráfico).
+  function mudarDt(dt, origem) {
+    definirDt(dt, origem);
+    reiniciar();
+    est.rodando = true;
+    atualizarBotaoRodar();
+    sujo.series = true;
   }
 
   // ---------------------------------------------------------------- eventos
@@ -1247,7 +1423,7 @@
     el.rodar.addEventListener('click', alternar);
     el.reiniciar.addEventListener('click', () => { reiniciar(); sujo.series = true; });
     el.limpar.addEventListener('click', () => {
-      for (const m of ['diferencial', 'incremental', 'exato']) est.rastro[m] = [[est.pose[m][0], est.pose[m][1]]];
+      for (const m of TRAJETORIAS) est.rastro[m] = [[est.pose[m][0], est.pose[m][1]]];
     });
 
     // rodas (direta)
@@ -1274,13 +1450,15 @@
     el.dif.addEventListener('input', () => { est.dD = Number(el.dif.value) / 1000; recalcularRobo(el.dif); });
     $('btn-dif-zerar').addEventListener('click', () => { el.dif.value = 0; est.dD = 0; recalcularRobo(null); });
 
-    el.pD.addEventListener('input', () => { const x = lerNumero(el.pD); if (x !== null && x >= 20 && x <= 600) { est.D = x / 1000; reaplicar(el.pD); } });
+    el.pD.addEventListener('input', () => { const x = lerNumero(el.pD); if (x !== null && x >= 20 && x <= 600) { est.D = x / 1000; reaplicar(el.pD); definirOdometria(); } });
     el.pL.addEventListener('input', () => { const x = lerNumero(el.pL); if (x !== null && x >= 50 && x <= 1500) { est.L = x / 1000; reaplicar(el.pL); } });
     el.pWmax.addEventListener('input', () => { const x = lerNumero(el.pWmax); if (x !== null && x >= 10 && x <= 1440) { est.wmax = x * RAD; reaplicar(el.pWmax); } });
     $('btn-p3dx').addEventListener('click', restaurarP3DX);
 
-    el.pDt.addEventListener('input', () => definirDt(dtDoSlider(Number(el.pDt.value)), el.pDt));
-    el.pDtNum.addEventListener('change', () => { const x = lerNumero(el.pDtNum); if (x !== null && x > 0) definirDt(x, el.pDtNum); });
+    el.pDt.addEventListener('input', () => mudarDt(dtDoSlider(Number(el.pDt.value)), el.pDt));
+    el.pDtNum.addEventListener('change', () => { const x = lerNumero(el.pDtNum); if (x !== null && x > 0) mudarDt(x, el.pDtNum); });
+    el.dtHist.addEventListener('input', () => mudarDt(dtDoSlider(Number(el.dtHist.value)), el.dtHist));
+    for (const b of el.atalhosDt) b.addEventListener('click', () => mudarDt(Number(b.dataset.dt), null));
     el.pEscala.addEventListener('change', () => { est.escala = Number(el.pEscala.value); });
     el.pTmax.addEventListener('change', () => {
       const x = lerNumero(el.pTmax);
@@ -1295,6 +1473,10 @@
     el.exAmostras.addEventListener('change', () => { est.exibir.amostras = el.exAmostras.checked; });
     el.exSeguir.addEventListener('change', () => { est.exibir.seguir = el.exSeguir.checked; vista.roboVisivel = true; });
     document.querySelectorAll('[data-exemplo]').forEach((b) => b.addEventListener('click', () => aplicarExemplo(b.dataset.exemplo)));
+    // odometria: a caixa só mostra ou esconde (as duas trajetórias são calculadas sempre)
+    el.odoAtivo.addEventListener('change', definirOdometria);
+    for (const e of [el.odoPulsos, el.odoEscL, el.odoEscR]) e.addEventListener('input', definirOdometria);
+    $('btn-odo-exemplo').addEventListener('click', exemploOdometria);
 
     // vista: arrastar move, roda do mouse dá zoom no ponto do cursor
     el.mundo.addEventListener('pointerdown', (e) => {
@@ -1365,6 +1547,7 @@
   lerCores();
   ligar();
   definirDt(est.dt);
+  definirOdometria();
   reiniciar();
   definirEntrada('rodas');
   definirRodas(60 * RAD, 70 * RAD, null); // abre andando, com as rodas do exemplo do slide 27
@@ -1372,5 +1555,5 @@
   requestAnimationFrame(quadro);
 
   // ganchos para inspeção pelo console (e para os testes no navegador)
-  window.simulador = { est, vista, definirRodas, definirRobo, definirEntrada, aplicarExemplo, reiniciar, geometria };
+  window.simulador = { est, vista, definirRodas, definirRobo, definirEntrada, aplicarExemplo, reiniciar, geometria, exemploOdometria };
 })();

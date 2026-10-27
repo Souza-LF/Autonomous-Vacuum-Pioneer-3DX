@@ -89,6 +89,23 @@
 
   const PASSOS = { diferencial: passoDiferencial, incremental: passoIncremental, exato: passoExato };
 
+  // Encoder incremental: pulsos inteiros contados até o ângulo acumulado da roda, com N pulsos por volta.
+  // A folga de 1e-9 evita que uma volta inteira calculada como 0,999999… perca o último pulso.
+  function pulsos(angulo, N) {
+    return Math.floor((angulo * N) / (2 * Math.PI) + 1e-9);
+  }
+
+  // Odometria (slide 43): distâncias percorridas pelas rodas -> Δs e Δθ -> pose pelo modelo incremental
+  function passoOdometria(P, dsl, dsr, l) {
+    const delta_s = (dsr + dsl) / 2;
+    const delta_th = (dsr - dsl) / (2 * l);
+    return [
+      P[0] + delta_s * Math.cos(P[2] + delta_th / 2),
+      P[1] + delta_s * Math.sin(P[2] + delta_th / 2),
+      P[2] + delta_th,
+    ];
+  }
+
   // Centro instantâneo de curvatura (slides 10 e 11): a R = v/ω do ponto médio, à esquerda se ω > 0
   function icc(P, v, w) {
     if (Math.abs(w) < 1e-9) return null;
@@ -116,6 +133,6 @@
 
   return {
     P3DX, direta, inversa, saturar, icc, passosDoLaco, simular,
-    passoDiferencial, passoIncremental, passoExato, PASSOS,
+    passoDiferencial, passoIncremental, passoExato, PASSOS, pulsos, passoOdometria,
   };
 });

@@ -16,7 +16,8 @@ import threading
 import webbrowser
 from pathlib import Path
 
-PASTA = Path(__file__).resolve().parent
+# no executável do PyInstaller (SimuladorP3DX.spec), a página fica na pasta temporária sys._MEIPASS
+PASTA = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 
 
 class Servidor(http.server.ThreadingHTTPServer):

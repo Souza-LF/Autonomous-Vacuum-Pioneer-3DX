@@ -24,6 +24,17 @@ livre). `Ctrl+C` encerra. Outras formas:
 - `python servidor.py 8080` escolhe a porta; `python servidor.py --sem-navegador` só sobe o servidor.
 - `python -m http.server 8000` nesta pasta, abrindo o endereço à mão.
 
+### Executável para Windows (sem precisar de Python)
+
+```bash
+python -m PyInstaller SimuladorP3DX.spec
+```
+
+Gera `dist/SimuladorP3DX.exe` (cerca de 7 MB, um arquivo só). Ele leva o Python, o `servidor.py` e a
+página; ao abrir, serve em localhost e abre o navegador, igual ao `python servidor.py`, e aceita os
+mesmos argumentos. Fechar a janela de console encerra o simulador. `build/` e `dist/` não vão para o
+git.
+
 ## A tela
 
 | Região | O que tem |
@@ -33,7 +44,9 @@ livre). `Ctrl+C` encerra. Outras formas:
 | Centro | O robô no plano com a geometria dos slides, o rastro de cada modelo com um ponto por passo Δt, o ICC, os vetores v<sub>L</sub>, v<sub>R</sub>, v e o sentido de ω. Embaixo, o slider da diferença de diâmetro: para a esquerda aumenta a roda esquerda, para a direita aumenta a direita. |
 | Direita | Diâmetro da roda, distância entre rodas, velocidade máxima da roda, Δt, velocidade da simulação, duração, pose inicial, o que exibir e os exemplos dos slides. |
 | Direta ⇄ inversa | Os espaços das rodas (φ̇<sub>L</sub>, φ̇<sub>R</sub>) e do robô (ω, v), com as matrizes das duas cinemáticas entre eles. Arrastar o ponto no gráfico de entrada (o das rodas no modo 1, o do robô no modo 2) move o outro, os sliders e o robô. As retas tracejadas pelo ponto mostram v e ω constantes no espaço das rodas e φ̇<sub>L</sub>, φ̇<sub>R</sub> constantes no espaço do robô; a região sombreada é o que as rodas alcançam. |
-| Histórico | No modo 1, v e ω; no modo 2, φ̇<sub>L</sub> e φ̇<sub>R</sub>. Nos dois, a distância de cada modelo ao arco exato. Janela dos últimos 20 s. |
+| Histórico | Logo abaixo do mapa, numa linha só, para ver o robô e os gráficos ao mesmo tempo. No modo 1, v e ω; no modo 2, φ̇<sub>L</sub> e φ̇<sub>R</sub>. Nos dois, a distância de cada modelo ao arco exato. Janela dos últimos 20 s. |
+| Δt acima do histórico | Barra e botões prontos (0,01; 0,1; 0,5; 1 e 2 s), ligados ao Δt da coluna da direita. Mudar o Δt (em qualquer um dos dois) recomeça a trajetória da pose inicial e roda, para comparar os modelos desde o começo. Com os dois modelos ligados, em 30 s a 50 e 80 °/s: Δt = 1 s dá 100 mm (Euler) e 1,1 mm (incremental); Δt = 0,1 s dá 10 mm e 0,011 mm. |
+| Odometria (coluna da direita) | A caixa "Robô real × odometria" mostra dois robôs. O real é cinza, com rastro contínuo. A odometria é um contorno marrom com rastro tracejado. Um traço pontilhado liga os dois, com o desvio escrito. O quadro de leitura dá as duas poses e o desvio (distância e Δθ), e o histórico ganha o gráfico "Desvio da odometria". Os campos são os pulsos por volta do encoder e o escorregamento de cada roda. O botão de exemplo roda 60 s com as rodas iguais e a direita 2 mm maior: a odometria anda reto e o robô real termina 1,41 m para o lado. |
 
 Teclado (com o foco fora dos campos):
 - No modo 1, ↑ e ↓ somam ±5 °/s às duas rodas, e ← e → tiram 5 °/s de uma roda e põem na outra.
@@ -55,6 +68,12 @@ Notação dos slides: pose P = (x, y, θ), r raio da roda, l metade da distânci
 - Arco exato (referência, fora dos slides): com v e ω constantes no passo, o robô anda sobre um
   arco de raio R = v/ω em volta do ICC. Serve para medir o erro dos dois modelos: o Euler erra
   na ordem de Δt e o incremental na ordem de Δt².
+- Odometria (slide 43): o encoder conta pulsos inteiros, N por volta da roda. A cada passo,
+  Δs<sub>l</sub> = r · (2π/N) · Δpulsos<sub>l</sub> e Δs<sub>r</sub> idem, com o raio nominal r. Daí
+  Δs = (Δs<sub>r</sub> + Δs<sub>l</sub>)/2 e Δθ = (Δs<sub>r</sub> − Δs<sub>l</sub>)/(2l), e a pose segue as equações
+  do modelo incremental.
+- Robô real: anda pelo arco exato com os raios reais r<sub>L</sub> e r<sub>R</sub> (os da diferença de
+  diâmetro). Cada roda leva para o chão só (1 − escorregamento) do que girou.
 
 Parâmetros do P3-DX tirados do código dos slides 26 e 27: diâmetro da roda 195 mm (r = 97,5 mm)
 e distância entre rodas 381 mm (l = 190,5 mm). O limite de 360 °/s por roda não vem dos slides:
@@ -74,6 +93,15 @@ e distância entre rodas 381 mm (l = 190,5 mm). O limite de 360 °/s por roda n�
     ponto cheio marca o que o robô faz.
 - Mudar o diâmetro nominal, a distância entre rodas ou o limite mantém o que o modo atual
   comanda: as rodas no modo 1, v e ω no modo 2.
+- A odometria não está nos slides como simulação. Os slides 23 e 43 só dizem que, na prática, Δs e Δθ
+  vêm dos encoders. O que foi implementado:
+  - O encoder mede o giro da roda, e não o chão. Por isso não percebe nem o escorregamento nem
+    a roda maior: com as rodas girando igual, os pulsos saem iguais e a odometria anda reto, mesmo
+    que o robô real curve.
+  - O escorregamento é determinístico (uma fração fixa por roda), sem ruído aleatório, para a
+    mesma entrada dar sempre o mesmo resultado.
+  - Os 500 pulsos por volta são um valor didático, não o encoder do P3-DX (que não foi conferido).
+  - O robô real e a odometria são calculados sempre; a caixa só decide se aparecem.
 - Os exemplos dos slides comandam as rodas, por isso passam para o modo 1.
 - Os exemplos dos slides rodam 30 s com o mesmo número de passos do laço
   `np.arange(0, tmax + dt, dt)`, isto é, round(tmax/Δt) + 1 passos. Por isso a pose final na tela
@@ -105,14 +133,26 @@ O seletor de entrada foi testado nos dois modos:
 - o teclado e o arraste só no gráfico de entrada;
 - o erro de raio, que no modo 2 mantém o comando e muda o executado.
 
+A odometria foi testada no Node e no navegador:
+- Sem erro físico e com 10⁹ pulsos por volta, ela coincide com o modelo incremental (diferença
+  de 6·10⁻⁷ mm).
+- Pulsos iguais deixam a odometria exatamente em y = 0 e θ = 0.
+- O robô real fica no círculo de raio l(r<sub>L</sub> + r<sub>R</sub>)/(r<sub>R</sub> − r<sub>L</sub>).
+- No exemplo (direita +2 mm, 60 s a 100 °/s), o real termina em (10,150; 1,406) m e 15,8°, e a
+  odometria em (10,227; 0) m. O desvio é de 1,41 m.
+- Com 10 % de escorregamento na roda esquerda, o real vira à esquerda e a odometria segue reta.
+- Sem nenhum erro físico, o desvio vem só da resolução do encoder: em 30 s a 50 e 80 °/s, 0,01 mm
+  com 10⁶ pulsos por volta, 0,7 mm com 500 e dezenas de mm com 10.
+
 ## Arquivos
 
 | Arquivo | Conteúdo |
 | --- | --- |
 | `index.html` | Estrutura da página. |
 | `estilo.css` | Aparência, temas claro e escuro e as cores usadas no desenho. |
-| `cinematica.js` | Só a física: direta, inversa, saturação, ICC e os três passos de integração. Roda no navegador e no Node. |
+| `cinematica.js` | Só a física: direta, inversa, saturação, ICC, os três passos de integração, a contagem de pulsos do encoder e o passo da odometria. Roda no navegador e no Node. |
 | `interface.js` | Estado, laço de tempo, desenho da cena e dos gráficos, eventos. |
 | `servidor.py` | Servidor local (biblioteca padrão do Python). |
+| `SimuladorP3DX.spec` | Receita do PyInstaller para o executável do Windows. |
 | `testes/` | Referência em Python a partir do código dos slides e teste em Node. |
 | `COLCON_IGNORE` | Faz o colcon pular esta pasta quando o workspace ROS 2 é compilado. |

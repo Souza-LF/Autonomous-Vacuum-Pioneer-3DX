@@ -21,6 +21,10 @@
   --inc: #e8590c;
   --inc-corpo: #66d0e0;
   --exato: #8a94a6;
+  /* odometria: o robô real em grafite e a estimativa pelos encoders em marrom tracejado */
+  --real: #343a40;
+  --real-corpo: #ced4da;
+  --odo: #a0522d;
 
   /* grandezas: cada uma tem a mesma cor em slider, gráfico e vetor */
   --wl: #0c8599;
@@ -60,6 +64,9 @@
     --inc: #ff8a4c;
     --inc-corpo: #3fbfd1;
     --exato: #8a94a6;
+    --real: #dee2e6;
+    --real-corpo: #6c757d;
+    --odo: #e8a06a;
     --wl: #3bc9db;
     --wr: #f06595;
     --v: #69db7c;
@@ -92,6 +99,9 @@
   --inc: #ff8a4c;
   --inc-corpo: #3fbfd1;
   --exato: #8a94a6;
+  --real: #dee2e6;
+  --real-corpo: #6c757d;
+  --odo: #e8a06a;
   --wl: #3bc9db;
   --wr: #f06595;
   --v: #69db7c;
@@ -165,6 +175,7 @@ body {
 }
 .amostra-dif { --cor: var(--dif); }
 .amostra-inc { --cor: var(--inc); }
+.amostra-odo { --cor: var(--odo); }
 
 .execucao { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
 
@@ -359,12 +370,15 @@ kbd {
 }
 
 /* ---------- cena ---------- */
+/* coluna do meio: mapa em cima e histórico logo abaixo, os dois na mesma tela */
+.centro { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .cena { padding: 10px; }
 .tela { position: relative; }
 #mundo {
   display: block;
   width: 100%;
-  height: clamp(320px, 64vh, 660px);
+  /* sobra espaço para o histórico aparecer embaixo sem rolar a página */
+  height: clamp(300px, calc(100vh - 490px), 620px);
   border-radius: 8px;
   background: var(--fundo-cena);
   cursor: grab;
@@ -443,7 +457,16 @@ kbd {
 code { padding: 0 3px; border-radius: 4px; background: var(--campo); font: 12px var(--fonte-mono); }
 
 /* ---------- gráficos ---------- */
-.graficos, .historico, .equacoes { margin-top: 12px; }
+.graficos, .equacoes { margin-top: 12px; }
+/* cabeçalho do histórico: título à esquerda e o Δt à direita, junto do erro dos modelos */
+.historico .cabecalho { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 16px; margin-bottom: 8px; }
+.historico .cabecalho h2 { margin: 0; }
+.comparar-dt { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.comparar-dt label { font-weight: 600; }
+.comparar-dt .trilho { width: 120px; padding: 0; }
+.comparar-dt output { min-width: 54px; font-variant-numeric: tabular-nums; }
+.atalhos-dt { display: flex; gap: 3px; }
+.atalhos-dt button.ativo { border-color: var(--destaque); color: var(--destaque); }
 .planos {
   display: grid;
   /* coluna do meio com largura fixa: as matrizes mudam de valor sem empurrar os gráficos */
@@ -483,11 +506,11 @@ figcaption { max-width: 440px; margin: 6px auto 0; color: var(--texto-suave); fo
 }
 .mat.num span { min-width: 3.4em; }
 
-.series { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.series canvas { display: block; width: 100%; height: 170px; border-radius: 8px; background: var(--fundo-cena); }
+/* uma linha só: modo 1 mostra v, ω e erro; modo 2 mostra rodas e erro; + desvio da odometria quando ligada.
+   O número de colunas (--colunas) vem do interface.js */
+.series { display: grid; grid-template-columns: repeat(var(--colunas, 3), minmax(0, 1fr)); gap: 10px; }
+.series canvas { display: block; width: 100%; height: 150px; border-radius: 8px; background: var(--fundo-cena); }
 .series canvas[hidden] { display: none; }
-/* modo 1: v e ω lado a lado e o erro dos modelos na linha de baixo, inteiro */
-.series.modo-rodas #serie-erro { grid-column: 1 / -1; }
 
 /* ---------- equações e rodapé ---------- */
 .equacoes summary { font-weight: 700; cursor: pointer; }
@@ -510,11 +533,13 @@ figcaption { max-width: 440px; margin: 6px auto 0; color: var(--texto-suave); fo
 @media (max-width: 760px) {
   body { padding-block: 10px; }
   .painel { grid-template-columns: minmax(0, 1fr); }
-  .cena { order: -1; }
+  .centro { order: -1; }
   .execucao { margin-left: 0; }
   #mundo { height: 56vh; }
   .hud { font-size: 11px; }
   .planos, .series { grid-template-columns: minmax(0, 1fr); }
+  .comparar-dt { flex-wrap: wrap; width: 100%; }
+  .comparar-dt .trilho { flex: 1; }
   .faixa-dif { grid-template-columns: minmax(0, 1fr); }
   .faixa-dif .lado:last-child { text-align: right; }
 }

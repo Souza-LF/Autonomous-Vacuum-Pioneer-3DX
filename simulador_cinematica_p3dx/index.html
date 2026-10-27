@@ -98,7 +98,8 @@
     <p class="dica" id="dica-teclado"></p>
   </aside>
 
-  <!-- Centro: o robô no plano -->
+  <!-- Centro: o robô no plano e, logo abaixo, o histórico, para ver os dois juntos -->
+  <div class="centro">
   <section class="cartao cena" aria-label="Robô no plano">
     <div class="tela">
       <canvas id="mundo" aria-label="Robô e trajetória no plano x-y"></canvas>
@@ -127,6 +128,33 @@
     </div>
   </section>
 
+  <section class="cartao historico" aria-label="Histórico no tempo">
+    <div class="cabecalho">
+      <h2>Histórico no tempo <small id="historico-sub"></small></h2>
+      <!-- Δt ao lado do erro dos modelos: mudar recomeça a trajetória, então cada Δt é comparado desde o início -->
+      <div class="comparar-dt" title="Mudar o Δt recomeça a trajetória da pose inicial">
+        <label for="dt-hist">Δt</label>
+        <div class="trilho sem-zero"><input type="range" id="dt-hist" min="0" max="100" step="1" aria-label="Δt em escala logarítmica"></div>
+        <output id="dt-hist-valor" for="dt-hist"></output>
+        <div class="atalhos-dt" role="group" aria-label="Valores prontos de Δt em segundos">
+          <button type="button" class="pequeno" data-dt="0.01">0,01</button>
+          <button type="button" class="pequeno" data-dt="0.1">0,1</button>
+          <button type="button" class="pequeno" data-dt="0.5">0,5</button>
+          <button type="button" class="pequeno" data-dt="1">1</button>
+          <button type="button" class="pequeno" data-dt="2">2</button>
+        </div>
+      </div>
+    </div>
+    <div class="series" id="series">
+      <canvas id="serie-rodas" aria-label="φ̇ L e φ̇ R no tempo"></canvas>
+      <canvas id="serie-v" aria-label="v no tempo"></canvas>
+      <canvas id="serie-w" aria-label="ω no tempo"></canvas>
+      <canvas id="serie-erro" aria-label="Desvio de cada modelo em relação ao arco exato"></canvas>
+      <canvas id="serie-odo" aria-label="Distância entre o robô real e a odometria" hidden></canvas>
+    </div>
+  </section>
+  </div>
+
   <!-- Direita: parâmetros -->
   <aside class="cartao parametros" aria-label="Parâmetros">
     <h2>Parâmetros do robô</h2>
@@ -141,6 +169,22 @@
     <p class="sec" id="p-derivados"></p>
     <button type="button" id="btn-p3dx" class="largo">Restaurar P3-DX (slides 26 e 27)</button>
 
+    <!-- Odometria: robô real (raios reais e escorregamento) × estimativa pelos pulsos dos encoders (slide 43) -->
+    <h2 class="separado">Odometria (encoders)</h2>
+    <div class="marcar">
+      <label><input type="checkbox" id="odo-ativo"> Robô real × odometria <span class="amostra amostra-odo" aria-hidden="true"></span></label>
+    </div>
+    <div class="grade-campos">
+      <label for="odo-pulsos">Pulsos por volta da roda</label>
+      <span class="campo"><input type="number" id="odo-pulsos" min="1" max="1000000" step="1" value="500"><span class="un">p/v</span></span>
+      <label for="odo-esc-l">Escorregamento da roda esquerda</label>
+      <span class="campo"><input type="number" id="odo-esc-l" min="0" max="90" step="1" value="0"><span class="un">%</span></span>
+      <label for="odo-esc-r">Escorregamento da roda direita</label>
+      <span class="campo"><input type="number" id="odo-esc-r" min="0" max="90" step="1" value="0"><span class="un">%</span></span>
+    </div>
+    <p class="sec" id="odo-sec"></p>
+    <button type="button" id="btn-odo-exemplo" class="largo">Exemplo: rodas iguais, direita 2 mm maior, 60 s</button>
+
     <h2 class="separado">Simulação</h2>
     <div class="controle">
       <div class="linha-rotulo">
@@ -148,6 +192,7 @@
         <span class="campo"><input type="number" id="p-dt-num" min="0.001" max="2" step="0.01" value="0.1"><span class="un">s</span></span>
       </div>
       <div class="trilho sem-zero"><input type="range" id="p-dt" min="0" max="100" step="1" aria-label="Δt em escala logarítmica"></div>
+      <p class="sec">Mudar o Δt recomeça a trajetória da pose inicial. O mesmo controle fica acima do histórico.</p>
     </div>
     <div class="grade-campos">
       <label for="p-escala">Velocidade da simulação</label>
@@ -202,16 +247,6 @@
   </div>
 </section>
 
-<section class="cartao historico" aria-label="Histórico no tempo">
-  <h2>Histórico no tempo <small id="historico-sub"></small></h2>
-  <div class="series" id="series">
-    <canvas id="serie-rodas" aria-label="φ̇ L e φ̇ R no tempo"></canvas>
-    <canvas id="serie-v" aria-label="v no tempo"></canvas>
-    <canvas id="serie-w" aria-label="ω no tempo"></canvas>
-    <canvas id="serie-erro" aria-label="Desvio de cada modelo em relação ao arco exato"></canvas>
-  </div>
-</section>
-
 <details class="cartao equacoes">
   <summary>Equações usadas</summary>
   <div class="eqs">
@@ -239,6 +274,12 @@
       <p class="eq">x<sub>k</sub> = x<sub>k−1</sub> + Δs cos(θ<sub>k−1</sub> + Δθ/2)</p>
       <p class="eq">y<sub>k</sub> = y<sub>k−1</sub> + Δs sin(θ<sub>k−1</sub> + Δθ/2)</p>
       <p class="eq">θ<sub>k</sub> = θ<sub>k−1</sub> + Δθ</p>
+    </div>
+    <div>
+      <h3>Odometria por encoders (slide 43)</h3>
+      <p class="eq">Δs<sub>l</sub> = r · (2π/N) · Δpulsos<sub>l</sub>, &nbsp; Δs<sub>r</sub> = r · (2π/N) · Δpulsos<sub>r</sub></p>
+      <p class="eq">Δs = (Δs<sub>r</sub> + Δs<sub>l</sub>) / 2, &nbsp; Δθ = (Δs<sub>r</sub> − Δs<sub>l</sub>) / (2l)</p>
+      <p>A pose estimada segue as equações do modelo incremental com esses Δs e Δθ. A conta usa o raio nominal r e só pulsos inteiros. O robô real anda pelo arco exato com os raios reais r<sub>L</sub> e r<sub>R</sub>, e cada roda só leva para o chão (1 − escorregamento) do que girou. O encoder mede o giro da roda, não o chão, então não percebe nem o escorregamento nem a roda maior.</p>
     </div>
     <div>
       <h3>Referência: arco exato (fora dos slides)</h3>
