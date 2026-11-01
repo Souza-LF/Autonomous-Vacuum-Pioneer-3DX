@@ -80,7 +80,8 @@
     hist: [],
     edicao: null,           // pose sendo marcada no mapa: { tipo, x, y, th, px, py }
   };
-  const vista = { x: 0, y: 0, esc: 80, w: 0, h: 0, iniciada: false, roboVisivel: true, ultimoPasso: -1 };
+  // a câmera do mapa 2D; modo diz se a cena mostra o mapa ('2d') ou a vista 3D ('3d', em vista3d.js)
+  const vista = { x: 0, y: 0, esc: 80, w: 0, h: 0, iniciada: false, roboVisivel: true, ultimoPasso: -1, modo: '2d' };
   const sujo = { series: true };
   let cor = {};
   const fonte = { ui: 'system-ui, sans-serif', mat: 'Cambria, Georgia, serif' };
@@ -108,6 +109,8 @@
     exPolares: $('ex-polares'), exExato: $('ex-exato'), exAmostras: $('ex-amostras'), exSeguir: $('ex-seguir'),
     errDl: $('err-dl'), errDr: $('err-dr'), escL: $('esc-l'), escR: $('esc-r'),
     odoAtivo: $('odo-ativo'), odoPulsos: $('odo-pulsos'), odoSec: $('odo-sec'), serieOdo: $('serie-odo'),
+    cena: document.querySelector('.cena'), cena3d: $('cena3d'), zoom2d: $('zoom-2d'), zoom3d: $('zoom-3d'),
+    seletorVista: document.querySelectorAll('input[name="vista"]'),
   };
 
   // ---------------------------------------------------------------- utilitários
@@ -364,7 +367,9 @@
       }
       if (n >= 4000) est.acumulado = 0; // Δt minúsculo com escala alta: não deixa acumular atraso
     }
-    desenharMundo();
+    // com a vista 3D na frente, o mapa não é desenhado (ela tem o próprio laço); o quadro de leitura, sim
+    if (vista.modo === '3d') atualizarHud();
+    else desenharMundo();
     if (sujo.series) { desenharSeries(); sujo.series = false; }
     atualizarLeituras();
     requestAnimationFrame(quadro);
@@ -388,6 +393,12 @@
   }
 
   function enquadrar() {
+    enquadrarCaixa(...caixaCena());
+  }
+
+  // A caixa [x0, x1, y0, y1] do início, do alvo (ou do caminho), do trecho da reta por onde o robô vai e
+  // dos rastros à vista; a vista 3D enquadra a mesma caixa
+  function caixaCena() {
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     const incluir = (x, y) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); };
     incluir(est.P0[0], est.P0[1]);
@@ -405,7 +416,7 @@
       for (const p of est.m[m].rastro) incluir(p[0], p[1]);
       if (m === 'odometria') for (const p of est.m[m].rastroReal) incluir(p[0], p[1]);
     }
-    enquadrarCaixa(x0, x1, y0, y1);
+    return [x0, x1, y0, y1];
   }
 
   function visivel(m) {
@@ -1478,11 +1489,43 @@
     },
     inicio: 'Clique para pôr o início; arraste a partir dele para escolher a orientação θ0.',
     mover: 'Arraste para mover a vista; roda do mouse ou botões para o zoom; duplo clique enquadra.',
+    tres: 'Arraste para girar; com o botão direito (ou dois dedos), para deslocar; roda do mouse para aproximar. Alvo, reta e caminho se marcam no mapa 2D.',
   };
   function definirFerramenta(f) {
     est.ferramenta = f;
     el.mundo.classList.toggle('mover', f === 'mover');
-    el.dicaTela.textContent = f === 'alvo' ? DICAS.alvo[est.lei] : DICAS[f];
+    escreverDica();
+  }
+  function escreverDica() {
+    const f = est.ferramenta;
+    el.dicaTela.textContent = vista.modo === '3d' ? DICAS.tres : f === 'alvo' ? DICAS.alvo[est.lei] : DICAS[f];
+  }
+
+  // Mapa 2D ou vista 3D. A vista 3D (vista3d.js, um módulo) só desenha o mesmo estado; aqui ficam a
+  // troca, os botões e a dica. Sem o módulo (a página aberta como arquivo, sem o servidor), a área
+  // da vista 3D diz por quê; sem WebGL, quem avisa é o módulo.
+  function definirVista(modo) {
+    vista.modo = modo;
+    const tres = modo === '3d';
+    for (const r of el.seletorVista) r.checked = r.value === modo;
+    el.cena.classList.toggle('em-3d', tres);
+    el.cena3d.hidden = !tres;
+    el.zoom2d.hidden = tres;
+    el.zoom3d.hidden = !tres;
+    escreverDica();
+    if (window.vista3d) window.vista3d.ativar(tres);
+    else if (tres && document.readyState === 'complete') avisoSem3d();
+    try { history.replaceState(null, '', location.pathname + location.search + (tres ? '#3d' : '')); } catch (e) { /* file:// pode recusar */ }
+  }
+  let falha3d = '';   // o motivo, quando o módulo da vista 3D falha (ver o fim do arquivo)
+  function avisoSem3d() {
+    if (el.cena3d.querySelector('.aviso-3d')) return;
+    const p = document.createElement('p');
+    p.className = 'aviso-3d';
+    p.textContent = location.protocol === 'file:'
+      ? 'A vista 3D precisa da página servida por python servidor.py (ou pelo executável): aberta como arquivo, o navegador não carrega o módulo dela. O mapa 2D funciona assim mesmo.'
+      : `A vista 3D não carregou (${falha3d || 'vista3d.js'}). O mapa 2D continua funcionando.`;
+    el.cena3d.append(p);
   }
 
   function ligar() {
@@ -1605,6 +1648,7 @@
     $('btn-zoom-mais').addEventListener('click', () => zoom(1.25, vista.w / 2, vista.h / 2));
     $('btn-zoom-menos').addEventListener('click', () => zoom(0.8, vista.w / 2, vista.h / 2));
     $('btn-enquadrar').addEventListener('click', enquadrar);
+    for (const r of el.seletorVista) r.addEventListener('change', () => { if (r.checked) definirVista(r.value); });
 
     document.addEventListener('keydown', (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1687,7 +1731,20 @@
   el.modoInc.checked = est.ativo.incremental;
   reiniciar();
   requestAnimationFrame(quadro);
+  // se o módulo da vista 3D falhar, o aviso diz por quê: um arquivo que não chegou (vista3d.js ou o
+  // que ele importa, como o three.js) ou o erro que o módulo lançou
+  window.addEventListener('error', (e) => {
+    if (falha3d) return;
+    if (e.target instanceof HTMLScriptElement && e.target.type === 'module') falha3d = 'um arquivo do módulo não chegou: vista3d.js ou o three.js';
+    else if (e.message && /vista3d|three/.test(e.filename || '')) falha3d = e.message;
+  }, true);
+  // #3d na URL abre na vista 3D; se o módulo dela não carregou até o fim da página, a área avisa
+  if (location.hash === '#3d') definirVista('3d');
+  window.addEventListener('load', () => { if (vista.modo === '3d' && !window.vista3d) avisoSem3d(); });
 
-  // ganchos para inspeção pelo console (e para os testes no navegador)
-  window.simulador = { est, vista, reiniciar, recomecar, definirGanhos, definirLei, definirCaminho, aplicarExemplo, exemploOdometria, enquadrar, paraTela, paraMundo, passo };
+  // ganchos para inspeção pelo console, para os testes no navegador e para a vista 3D
+  window.simulador = {
+    est, vista, reiniciar, recomecar, definirGanhos, definirLei, definirCaminho, aplicarExemplo, exemploOdometria, enquadrar,
+    paraTela, paraMundo, passo, caixaCena, visivel, principal, definirVista,
+  };
 })();

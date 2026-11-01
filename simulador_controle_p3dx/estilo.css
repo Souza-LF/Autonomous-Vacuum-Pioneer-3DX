@@ -366,7 +366,12 @@ input[type="range"] { display: block; width: 100%; margin: 0; accent-color: var(
 /* coluna do meio: mapa em cima e histórico logo abaixo, os dois na mesma tela */
 .centro { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .cena { padding: 10px; }
-.ferramentas { margin-bottom: 8px; }
+.ferramentas { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.ferramentas .segmentado.tres { flex: 1 1 300px; }
+#seletor-vista { flex: 0 0 auto; grid-template-columns: auto auto; }
+#seletor-vista label { padding-inline: 14px; }
+/* na vista 3D, o clique não marca nada: as ferramentas do mapa saem */
+.cena.em-3d #ferramentas-2d { display: none; }
 .segmentado {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -404,6 +409,38 @@ input[type="range"] { display: block; width: 100%; margin: 0; accent-color: var(
 }
 #mundo.mover { cursor: grab; }
 #mundo.arrastando { cursor: grabbing; }
+
+/* vista 3D: por cima do mapa, do mesmo tamanho; o quadro de leitura continua por cima dela */
+.cena3d {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--fundo-cena);
+  cursor: grab;
+  touch-action: none;
+}
+.cena3d:active { cursor: grabbing; }
+.cena3d canvas { display: block; width: 100%; height: 100%; }
+.rotulos-3d { position: absolute; inset: 0; pointer-events: none; }
+/* o rótulo fica um pouco à direita e acima do ponto (o CSS2DRenderer centra a caixa nele) */
+.rotulo-3d {
+  padding: 0 0 16px 34px;
+  font: 600 12px var(--fonte-ui);
+  white-space: nowrap;
+  text-shadow: 0 0 2px var(--fundo-cena), 0 0 4px var(--fundo-cena);
+}
+.aviso-3d {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 24px;
+  color: var(--texto-suave);
+  font-size: 14px;
+  text-align: center;
+}
 
 .hud {
   position: absolute;

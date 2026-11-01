@@ -26,6 +26,10 @@ class Servidor(http.server.ThreadingHTTPServer):
 
 
 class Arquivos(http.server.SimpleHTTPRequestHandler):
+    # no Windows, o Python tira o tipo dos arquivos do registro, e em algumas máquinas .js vira
+    # text/plain; o navegador recusa módulos (a vista 3D) servidos assim
+    extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map, ".js": "text/javascript"}
+
     def end_headers(self):
         # sem cache: depois de editar o código, basta recarregar a página
         self.send_header("Cache-Control", "no-store")

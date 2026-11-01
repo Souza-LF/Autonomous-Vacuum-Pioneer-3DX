@@ -20,7 +20,11 @@ O servidor abre `http://localhost:8000` no navegador, na página de escolha (se 
 ocupada, usa a próxima livre). `Ctrl+C` encerra. Outras formas:
 
 - `python servidor.py 8080` escolhe a porta; `python servidor.py --sem-navegador` só sobe o servidor.
-- `python -m http.server 8000` nesta pasta, abrindo o endereço à mão.
+- `python -m http.server 8000` nesta pasta, abrindo o endereço à mão. No Windows, a vista 3D pode
+  não abrir assim: em algumas máquinas o Python tira do registro o tipo `text/plain` para `.js`, e o
+  navegador recusa o módulo. O `servidor.py` corrige isso.
+- Abrir `simulacao.html` direto do disco (`file://`) também roda a simulação, mas sem a vista 3D: o
+  navegador não carrega módulos de arquivos, e a área da vista 3D avisa.
 
 ### Executável para Windows (sem precisar de Python)
 
@@ -28,8 +32,8 @@ ocupada, usa a próxima livre). `Ctrl+C` encerra. Outras formas:
 python -m PyInstaller ControleP3DX.spec
 ```
 
-Gera `dist/ControleP3DX.exe` (cerca de 7 MB, um arquivo só). Ele leva o Python, o `servidor.py` e as
-duas páginas; ao abrir, serve em localhost e abre o navegador, igual ao `python servidor.py`, e
+Gera `dist/ControleP3DX.exe` (cerca de 7 MB, um arquivo só). Ele leva o Python, o `servidor.py`, as
+duas páginas e o three.js da vista 3D; ao abrir, serve em localhost e abre o navegador, igual ao `python servidor.py`, e
 aceita os mesmos argumentos. Fechar a janela de console encerra a simulação. `build/` e `dist/` não
 vão para o git.
 
@@ -49,7 +53,7 @@ vão para o git.
 | --- | --- |
 | Topo | O link de volta à escolha, o seletor do algoritmo, os dois modelos da pose (diferencial e incremental), que rodam juntos para comparar, e Pausar/Reiniciar. |
 | Esquerda | A lei do algoritmo escolhido, com um slider e um campo para cada ganho (a marca na trilha é o zero, porque o sinal decide a estabilidade). As condições ficam em verde ou vermelho, com um aviso quando alguma não vale. Um texto diz o que os ganhos fazem: a espiral do ponto, ζ e ω<sub>n</sub> da reta, a chegada do caminho. Embaixo, "Agora": as grandezas do controlador, v e ω comandados e executados, as rodas e o aviso de saturação. |
-| Centro | O mapa, com três ferramentas: marcar o alvo (a reta, ou editar o caminho), marcar o início e mover a vista. Mostra o rastro de cada modelo com um ponto por passo Δt e as grandezas do controlador desenhadas: ρ, α e β da Fig. 4.13 na pose; d e θ* ⊖ θ na reta; p<sub>j</sub>, p<sub>k</sub>, o círculo de raio d e α no caminho. O quadro de leitura diz quando cada modelo chegou e com que erro. Logo abaixo, o histórico da corrida inteira: distância, ângulos, v, ω (comando tracejado e executado), as rodas com o limite e, com a odometria, o desvio entre o robô real e a estimativa. |
+| Centro | O mapa, com três ferramentas: marcar o alvo (a reta, ou editar o caminho), marcar o início e mover a vista. Mostra o rastro de cada modelo com um ponto por passo Δt e as grandezas do controlador desenhadas: ρ, α e β da Fig. 4.13 na pose; d e θ* ⊖ θ na reta; p<sub>j</sub>, p<sub>k</sub>, o círculo de raio d e α no caminho. O quadro de leitura diz quando cada modelo chegou e com que erro. Logo abaixo, o histórico da corrida inteira: distância, ângulos, v, ω (comando tracejado e executado), as rodas com o limite e, com a odometria, o desvio entre o robô real e a estimativa. Acima do mapa, a aba "Mapa 2D \| Vista 3D" troca o mapa pela vista 3D (seção seguinte). |
 | Direita | Poses de início e alvo (na reta, também em (a, b, c)), o caminho (número de waypoints, comprimento e o tempo mínimo para percorrê-lo), os exemplos de cada algoritmo, as tolerâncias de chegada e o tempo máximo, os parâmetros do robô, o robô real e a odometria (diâmetro a mais de cada roda, escorregamento, pulsos por volta, malha pela odometria), Δt, a velocidade da simulação e o que exibir. |
 | Embaixo | "Equações usadas", com as leis, as condições e as escolhas de cada algoritmo. |
 
@@ -64,6 +68,33 @@ arrastar dá o sentido do percurso. No caminho, a mesma ferramenta vira "Editar 
 A roda do mouse dá zoom. Com "Mover vista", arrastar move o mapa e o duplo clique enquadra. Com o
 foco fora dos campos, espaço pausa e R reinicia. Mudar ganhos, poses, parâmetros ou Δt recomeça a
 corrida da pose inicial.
+
+## A vista 3D
+
+A aba "Vista 3D" mostra a mesma corrida em 3D, desenhada com o three.js. A vista só lê o estado da
+simulação e não muda nada nele: com ela aberta, a corrida continua bit a bit a de `simular()`.
+
+- O P3-DX é o contorno do mapa em duas camadas, o chassi e a tampa, com as alturas do URDF do
+  repositório do grupo (`p3dx_description/urdf/p3dx.xacro`), a roda louca atrás e as duas rodas, que
+  giram com o ângulo de cada uma. As rodas têm os diâmetros reais, com o diâmetro a mais de cada roda
+  da coluna da direita.
+- Os robôs são os do mapa, nas mesmas cores: os modelos ligados no topo, o arco exato quando
+  exibido (transparente) e, com a odometria, o robô real e a estimativa (transparente), ligados por
+  uma linha tracejada. Os rastros ficam no chão; o do arco exato e o da estimativa, tracejados.
+- No chão também ficam o início, o alvo (com um poste e o nome), a reta com o sentido do percurso e
+  o caminho com os waypoints numerados, sobre uma grade cujo passo acompanha o tamanho da cena.
+- Arrastar gira a câmera; com o botão direito (ou dois dedos), desloca; a roda do mouse aproxima,
+  na direção do cursor. "De cima" olha o chão de cima e "Enquadrar" volta à vista inicial. Enquanto
+  a câmera não é mexida, ela acompanha o robô quando ele chega perto da borda; "Câmera segue o robô",
+  nas opções de exibição, também vale aqui.
+- Alvo, reta e caminho se marcam no mapa 2D; a vista 3D acompanha. As cores seguem o tema.
+- `#3d` no fim da URL abre direto na vista 3D (`simulacao.html?algoritmo=reta#3d`); trocar de aba
+  atualiza a URL.
+- O three.js 0.160.0 (licença MIT) vem junto, em `vendor/three/`: a vista 3D funciona sem internet,
+  também no executável. A origem e os sha256 estão em `vendor/three/LEIAME.md`.
+- A vista 3D precisa da página servida (`python servidor.py` ou o executável). Aberta como arquivo,
+  a área avisa isso e o mapa 2D continua funcionando. Se o módulo falhar por outro motivo, o aviso
+  diz qual: um arquivo que não chegou ou o erro que ele lançou.
 
 ## A malha fechada
 
@@ -229,17 +260,33 @@ São 60 conferências, em 11 seções:
 10. seguir um caminho: amostragem, caminhos prontos, corte das quinas, o oito e a odometria;
 11. o exemplo do Corke de cada lei, o mesmo da página de escolha, chega nos três modelos.
 
-As duas páginas foram testadas no navegador (Edge sem janela, controlado pelo DevTools Protocol):
+As duas páginas também são testadas no navegador, pelos testes de `testes/navegador/` (Node 22+, sem
+dependências), que controlam um Edge sem janela pelo DevTools Protocol. Nesta pasta, com o servidor e
+o Edge rodando, cada um no seu terminal:
+
+```bash
+python servidor.py --sem-navegador
+msedge --headless=new --remote-debugging-port=9333 --user-data-dir=<pasta vazia>
+node testes/navegador/rodar.mjs
+```
+
+O `msedge.exe` fica em `C:\Program Files (x86)\Microsoft\Edge\Application`. O `rodar.mjs` roda os
+seis testes em sequência (127 conferências) e sai com erro se algum falhar; `rodar.mjs 3d` roda só
+os que têm "3d" no nome. `PORTA` e `PORTA_CDP` mudam as portas do servidor (8000) e do Edge (9333).
+As fotos dos testes vão para `testes/navegador/fotos/`, fora do git.
 
 - Em cada algoritmo, a corrida na tela é bit a bit a de `simular()` nos três modelos, e a da
-  odometria é a de `simularOdometria()`.
-- Também foram conferidos:
+  odometria é a de `simularOdometria()`; com a vista 3D aberta, também.
+- Também são conferidos:
   - os ganhos e as condições;
   - a edição do alvo, da reta e do caminho no mapa (acrescentar, arrastar, inserir, apagar);
   - os exemplos e o seletor;
   - a URL do algoritmo;
   - as legendas e a animação da página de escolha;
-  - o tema escuro e a página a 390 px;
+  - na vista 3D: robôs, giro e diâmetro das rodas e rastros iguais aos do estado, os rótulos de
+    cada algoritmo, "De cima", "Enquadrar", "Câmera segue o robô", o `#3d` da URL e o aviso quando a
+    página é aberta como arquivo ou quando o three.js não chega;
+  - o tema escuro e a página a 390 px, nas duas vistas;
   - o console sem erros.
 - O executável serve os mesmos arquivos da pasta (md5 iguais), e os mesmos testes passaram contra ele.
 
@@ -249,10 +296,13 @@ As duas páginas foram testadas no navegador (Edge sem janela, controlado pelo D
 | --- | --- |
 | `index.html`, `escolha.js` | A página de escolha e as miniaturas. |
 | `simulacao.html`, `simulacao.js` | A página da simulação: estado, tempo, desenho do mapa e do histórico, eventos. |
-| `estilo.css` | Aparência das duas páginas, temas claro e escuro e as cores usadas no desenho. |
+| `vista3d.js` | A vista 3D (módulo ES): o P3-DX, os rastros e as marcas desenhados com o three.js a partir do estado da simulação, sem mudá-lo. |
+| `vendor/three/` | three.js 0.160.0 (MIT), com o `OrbitControls` e o `CSS2DRenderer`; origem e sha256 em `LEIAME.md`. |
+| `estilo.css` | Aparência das duas páginas, temas claro e escuro e as cores usadas no desenho (no mapa e na vista 3D). |
 | `controladores.js` | As quatro leis, a malha fechada, a malha pela odometria e os exemplos do Corke. Não depende da página: roda no navegador e no Node. |
 | `cinematica.js` | Cópia do simulador da Aula 14: direta, inversa, saturação, os três passos de integração, os pulsos do encoder e o passo da odometria. |
 | `servidor.py` | Servidor local (biblioteca padrão do Python). |
 | `ControleP3DX.spec` | Receita do PyInstaller para o executável do Windows. |
 | `testes/teste_controladores.js` | Os testes em Node. |
+| `testes/navegador/` | Os testes no navegador: `cdp.mjs` (o cliente do DevTools Protocol), um teste por parte da página e o `rodar.mjs`, que roda todos. |
 | `COLCON_IGNORE` | Faz o colcon pular esta pasta quando o workspace ROS 2 é compilado. |

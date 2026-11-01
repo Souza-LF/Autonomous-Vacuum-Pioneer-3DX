@@ -232,6 +232,7 @@ A pasta [`simulador_controle_p3dx/`](simulador_controle_p3dx/) é a continuaçã
 - **ir a uma pose** (4.1.1.4), o algoritmo principal: posição e orientação final, com ré e as condições de estabilidade;
 - **ir a um ponto** (4.1.1.1), **seguir uma reta** (4.1.1.2) e **seguir um caminho** por *pure pursuit* (4.1.1.3);
 - alvo, reta e waypoints marcados no mapa, saturação das rodas e malha fechada pela odometria dos encoders.
+- a mesma corrida numa **vista 3D**, com o three.js na própria pasta, então funciona sem internet.
 
 Para rodar, basta o Python, sem dependências:
 

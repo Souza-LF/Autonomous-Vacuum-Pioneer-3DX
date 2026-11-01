@@ -166,8 +166,12 @@
   <!-- Centro: o robô no plano e, logo abaixo, o histórico da corrida inteira -->
   <div class="centro">
   <section class="cartao cena" aria-label="Robô no plano">
-    <div class="ferramentas" role="radiogroup" aria-label="O que o clique no mapa faz">
-      <div class="segmentado tres">
+    <div class="ferramentas">
+      <div class="segmentado" id="seletor-vista" role="radiogroup" aria-label="Vista da cena">
+        <label><input type="radio" name="vista" value="2d" checked><span>Mapa 2D</span></label>
+        <label><input type="radio" name="vista" value="3d"><span>Vista 3D</span></label>
+      </div>
+      <div class="segmentado tres" id="ferramentas-2d" role="radiogroup" aria-label="O que o clique no mapa faz">
         <label><input type="radio" name="ferramenta" value="alvo" checked><span id="rotulo-alvo">Marcar alvo</span></label>
         <label><input type="radio" name="ferramenta" value="inicio"><span>Marcar início</span></label>
         <label><input type="radio" name="ferramenta" value="mover"><span>Mover vista</span></label>
@@ -175,14 +179,19 @@
     </div>
     <div class="tela">
       <canvas id="mundo" aria-label="Robô, alvo e trajetória no plano x-y"></canvas>
+      <div class="cena3d" id="cena3d" role="img" aria-label="Robô, alvo e trajetória em 3D" hidden></div>
       <div class="hud" id="hud" aria-live="off"></div>
     </div>
     <div class="barra-tela">
       <p class="dica-tela" id="dica-tela"></p>
-      <div class="zoom">
+      <div class="zoom" id="zoom-2d">
         <button type="button" id="btn-zoom-mais" title="Aproximar" aria-label="Aproximar">+</button>
         <button type="button" id="btn-zoom-menos" title="Afastar" aria-label="Afastar">−</button>
         <button type="button" id="btn-enquadrar" title="Enquadrar início, alvo e trajetória">Enquadrar</button>
+      </div>
+      <div class="zoom" id="zoom-3d" hidden>
+        <button type="button" id="btn-3d-cima" title="Olhar de cima, como no mapa">De cima</button>
+        <button type="button" id="btn-3d-enquadrar" title="Enquadrar início, alvo e trajetória em perspectiva">Enquadrar</button>
       </div>
     </div>
   </section>
@@ -386,5 +395,6 @@
 <script src="cinematica.js"></script>
 <script src="controladores.js"></script>
 <script src="simulacao.js"></script>
+<script type="module" src="vista3d.js"></script>
 </body>
 </html>
