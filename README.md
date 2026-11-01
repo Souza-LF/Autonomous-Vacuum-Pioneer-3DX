@@ -31,6 +31,7 @@
 - [Estrutura do repositório](#estrutura-do-repositório)
 - [Limitações conhecidas](#limitações-conhecidas)
 - [Simulador cinemático do P3-DX (ENE122)](#simulador-cinemático-do-p3-dx-ene122)
+- [Controle do P3-DX: leis do Corke (ENE122)](#controle-do-p3-dx-leis-do-corke-ene122)
 - [Equipe](#equipe)
 
 ## Visão geral
@@ -182,6 +183,7 @@ Os valores do `wall_follower` e do `boustrophedon_planner` são constantes no c�
 │       ├── ros2aria/                 # driver do robô real (AriaCoda)
 │       └── config/                   # parâmetros do slam_toolbox e do Nav2
 ├── simulador_cinematica_p3dx/        # simulador web da cinemática (ENE122), fora do colcon
+├── simulador_controle_p3dx/          # simulador web das leis de controle do Corke (ENE122), fora do colcon
 ├── docs/                             # imagens deste README
 └── vacuum.rviz                       # configuração do RViz2
 ```
@@ -219,6 +221,27 @@ O servidor abre o simulador no navegador, em `localhost`. Para gerar um executá
 
 A pasta tem um arquivo `COLCON_IGNORE`, então não interfere na compilação do workspace ROS 2.
 
+## Controle do P3-DX: leis do Corke (ENE122)
+
+<p align="center">
+  <img src="docs/simulador_controle.png" alt="Simulação do controle do Pioneer 3-DX indo a uma pose" width="90%">
+</p>
+
+A pasta [`simulador_controle_p3dx/`](simulador_controle_p3dx/) é a continuação do simulador cinemático: as quatro leis de controle da Seção 4.1.1 do Corke (*Robotics, Vision and Control*) em malha fechada no P3-DX, com os mesmos modelos diferencial e incremental. Uma página de escolha abre a simulação de cada lei:
+
+- **ir a uma pose** (4.1.1.4), o algoritmo principal: posição e orientação final, com ré e as condições de estabilidade;
+- **ir a um ponto** (4.1.1.1), **seguir uma reta** (4.1.1.2) e **seguir um caminho** por *pure pursuit* (4.1.1.3);
+- alvo, reta e waypoints marcados no mapa, saturação das rodas e malha fechada pela odometria dos encoders.
+
+Para rodar, basta o Python, sem dependências:
+
+```bash
+cd simulador_controle_p3dx
+python servidor.py
+```
+
+O executável para Windows sai de `python -m PyInstaller ControleP3DX.spec`. As leis, os números medidos e a validação estão no [README do simulador](simulador_controle_p3dx/README.md). Esta pasta também tem um `COLCON_IGNORE`.
+
 ## Equipe
 
 Projeto acadêmico do curso de Engenharia Elétrica da **Universidade Federal de Juiz de Fora (UFJF)**.
@@ -227,3 +250,4 @@ Projeto acadêmico do curso de Engenharia Elétrica da **Universidade Federal de
 | --- | --- | --- |
 | Robô de limpeza autônomo | ENE137 · Laboratório de Robótica Móvel<br>Profs. Iago Zanuti Biundini e Junior da Costa | José Geraldo Soares, Luis Filipe de Souza e Rayan Nascimento |
 | Simulador cinemático | ENE122 · Robótica Móvel<br>Prof. André Luís Marques Marcato | José Geraldo Soares e Luis Filipe de Souza |
+| Controle do P3-DX (leis do Corke) | ENE122 · Robótica Móvel<br>Prof. André Luís Marques Marcato | José Geraldo Soares e Luis Filipe de Souza |

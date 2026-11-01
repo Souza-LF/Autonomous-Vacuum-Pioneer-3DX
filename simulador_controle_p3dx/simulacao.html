@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controle do P3-DX</title>
+<meta name="description" content="Simulação das leis de controle do Corke (Seção 4.1.1) no Pioneer P3-DX diferencial: ir a uma pose, ir a um ponto, seguir uma reta e seguir um caminho, com os modelos diferencial e incremental.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;500;600;700&family=STIX+Two+Text:ital,wght@0,400;0,600;1,400;1,600&display=swap">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+<header class="topo">
+  <div class="titulo">
+    <a class="voltar" href="index.html">← Os quatro algoritmos</a>
+    <h1>Controle do Pioneer P3-DX</h1>
+    <p>ENE122 Robótica Móvel · Mini Desafio 01b · Corke, <i>Robotics, Vision and Control</i>, Seção 4.1.1</p>
+  </div>
+
+  <label class="algoritmo">
+    <span>Algoritmo</span>
+    <select id="algoritmo">
+      <option value="pose" selected>Ir a uma pose (driving to a configuration)</option>
+      <option value="ponto">Ir a um ponto (driving to a point)</option>
+      <option value="reta">Seguir uma reta (driving along a line)</option>
+      <option value="caminho">Seguir um caminho (driving along a path)</option>
+    </select>
+  </label>
+
+  <fieldset class="modos">
+    <legend>Modelo da pose</legend>
+    <label class="modo"><input type="checkbox" id="modo-dif" checked> Modelo diferencial <span class="amostra amostra-dif" aria-hidden="true"></span></label>
+    <label class="modo"><input type="checkbox" id="modo-inc" checked> Modelo incremental <span class="amostra amostra-inc" aria-hidden="true"></span></label>
+  </fieldset>
+
+  <div class="execucao">
+    <button type="button" id="btn-rodar" class="primario">Pausar</button>
+    <button type="button" id="btn-reiniciar">Reiniciar</button>
+  </div>
+</header>
+
+<main class="painel">
+
+  <!-- Esquerda: a lei de controle. Só aparecem os ganhos do algoritmo escolhido; mudar um ganho
+       recomeça a trajetória da pose inicial. -->
+  <aside class="cartao comandos" aria-label="Controlador">
+    <div data-leis="pose">
+      <h2>Ir a uma pose <small>driving to a configuration</small></h2>
+      <p class="lei"><span class="eq">v = k<sub>ρ</sub> ρ</span><span class="eq">ω = k<sub>α</sub> α + k<sub>β</sub> β</span></p>
+
+      <div class="controle cor-rho">
+        <div class="linha-rotulo">
+          <label for="k-rho-num"><span class="simb">k<sub>ρ</sub></span> distância</label>
+          <span class="campo"><input type="number" id="k-rho-num" step="0.05" inputmode="decimal"><span class="un">1/s</span></span>
+        </div>
+        <div class="trilho" style="--z: 0.25"><input type="range" id="k-rho" min="-1" max="3" step="0.05" aria-label="Ganho k rô"></div>
+      </div>
+      <div class="controle cor-alfa">
+        <div class="linha-rotulo">
+          <label for="k-alfa-num"><span class="simb">k<sub>α</sub></span> rumo ao alvo</label>
+          <span class="campo"><input type="number" id="k-alfa-num" step="0.1" inputmode="decimal"><span class="un">1/s</span></span>
+        </div>
+        <div class="trilho" style="--z: 0.1667"><input type="range" id="k-alfa" min="-2" max="10" step="0.1" aria-label="Ganho k alfa"></div>
+      </div>
+      <div class="controle cor-beta">
+        <div class="linha-rotulo">
+          <label for="k-beta-num"><span class="simb">k<sub>β</sub></span> orientação final</label>
+          <span class="campo"><input type="number" id="k-beta-num" step="0.05" inputmode="decimal"><span class="un">1/s</span></span>
+        </div>
+        <div class="trilho" style="--z: 0.625"><input type="range" id="k-beta" min="-5" max="3" step="0.05" aria-label="Ganho k beta"></div>
+      </div>
+    </div>
+
+    <div data-leis="ponto" hidden>
+      <h2>Ir a um ponto <small>driving to a point</small></h2>
+      <p class="lei"><span class="eq">v = K<sub>v</sub> ρ</span><span class="eq">ω = K<sub>h</sub> (θ* ⊖ θ)</span></p>
+
+      <div class="controle cor-rho">
+        <div class="linha-rotulo">
+          <label for="k-pv-num"><span class="simb">K<sub>v</sub></span> distância</label>
+          <span class="campo"><input type="number" id="k-pv-num" step="0.05" inputmode="decimal"><span class="un">1/s</span></span>
+        </div>
+        <div class="trilho" style="--z: 0.25"><input type="range" id="k-pv" min="-1" max="3" step="0.05" aria-label="Ganho K v"></div>
+      </div>
+      <div class="controle cor-alfa">
+        <div class="linha-rotulo">
+          <label for="k-ph-num"><span class="simb">K<sub>h</sub></span> rumo ao alvo</label>
+          <span class="campo"><input type="number" id="k-ph-num" step="0.1" inputmode="decimal"><span class="un">1/s</span></span>
+        </div>
+        <div class="trilho" style="--z: 0.1667"><input type="range" id="k-ph" min="-2" max="10" step="0.1" aria-label="Ganho K h"></div>
+      </div>
+    </div>
+
+    <div data-leis="reta" hidden>
+      <h2>Seguir uma reta <small>driving along a line</small></h2>
+      <p class="lei"><span class="eq">v constante</span><span class="eq">ω = K<sub>d</sub> d + K<sub>h</sub> (θ* ⊖ θ)</span></p>
+
+      <div class="controle cor-beta">
+        <div class="linha-rotulo">
+          <label for="k-rd-num"><span class="simb">K<sub>d</sub></span> distância à reta</label>
+          <span class="campo"><input type="number" id="k-rd-num" step="0.05" inputmode="decimal"><span class="un">1/(m·s)</span></span>
+        </div>
+        <div class="trilho" style="--z: 0.25"><input type="range" id="k-rd" min="-1" max="3" step="0.05" aria-label="Ganho K d"></div>
+      </div>
+      <div class="controle cor-alfa">
+        <div class="linha-rotulo">
+          <label for="k-rh-num"><span class="simb">K<sub>h</sub></span> direção da reta</label>
+          <span class="campo"><input type="number" id="k-rh-num" step="0.05" inputmode="decimal"><span class="un">1/s</span></span>
+        </div>
+        <div class="trilho" style="--z: 0.25"><input type="range" id="k-rh" min="-2" max="6" step="0.05" aria-label="Ganho K h"></div>
+      </div>
+      <div class="controle cor-rho">
+        <div class="linha-rotulo">
+          <label for="k-rv-num"><span class="simb">v</span> velocidade constante</label>
+          <span class="campo"><input type="number" id="k-rv-num" step="0.05" inputmode="decimal"><span class="un">m/s</span></span>
+        </div>
+        <div class="trilho sem-zero"><input type="range" id="k-rv" min="0.05" max="1" step="0.01" aria-label="Velocidade constante v"></div>
+      </div>
+    </div>
+
+    <div data-leis="caminho" hidden>
+      <h2>Seguir um caminho <small>pure pursuit</small></h2>
+      <p class="lei"><span class="eq">v constante</span><span class="eq">ω = K<sub>h</sub> (θ* ⊖ θ), &nbsp;θ* rumo a p<sub>k</sub></span></p>
+
+      <div class="controle cor-beta">
+        <div class="linha-rotulo">
+          <label for="k-cd-num"><span class="simb">d</span> distância de perseguição</label>
+          <span class="campo"><input type="number" id="k-cd-num" step="0.05" inputmode="decimal"><span class="un">m</span></span>
+        </div>
+        <div class="trilho sem-zero"><input type="range" id="k-cd" min="0.05" max="2" step="0.05" aria-label="Distância de perseguição d"></div>
+      </div>
+      <div class="controle cor-alfa">
+        <div class="linha-rotulo">
+          <label for="k-ch-num"><span class="simb">K<sub>h</sub></span> rumo a p<sub>k</sub></label>
+          <span class="campo"><input type="number" id="k-ch-num" step="0.1" inputmode="decimal"><span class="un">1/s</span></span>
+        </div>
+        <div class="trilho" style="--z: 0.1667"><input type="range" id="k-ch" min="-2" max="10" step="0.1" aria-label="Ganho K h"></div>
+      </div>
+      <div class="controle cor-rho">
+        <div class="linha-rotulo">
+          <label for="k-cv-num"><span class="simb">v</span> velocidade constante</label>
+          <span class="campo"><input type="number" id="k-cv-num" step="0.05" inputmode="decimal"><span class="un">m/s</span></span>
+        </div>
+        <div class="trilho sem-zero"><input type="range" id="k-cv" min="0.05" max="1" step="0.01" aria-label="Velocidade constante v"></div>
+      </div>
+    </div>
+
+    <div class="condicoes" id="condicoes" aria-live="polite"></div>
+    <p class="sec" id="lei-sec" hidden></p>
+    <p class="aviso" id="aviso-instavel" hidden>Uma condição de estabilidade não vale: o robô não deve chegar ao alvo.</p>
+
+    <div class="marcar" data-leis="pose">
+      <label><input type="checkbox" id="permitir-re" checked> Dar ré quando o alvo está atrás</label>
+    </div>
+    <div class="botoes">
+      <button type="button" id="btn-ganhos">Ganhos padrão</button>
+    </div>
+
+    <h2 class="separado">Agora <small id="agora-modelo"></small></h2>
+    <dl class="leituras" id="leituras"></dl>
+    <p class="aviso" id="aviso-saturacao" hidden>Roda no limite: o comando foi reduzido mantendo o raio de curva.</p>
+  </aside>
+
+  <!-- Centro: o robô no plano e, logo abaixo, o histórico da corrida inteira -->
+  <div class="centro">
+  <section class="cartao cena" aria-label="Robô no plano">
+    <div class="ferramentas" role="radiogroup" aria-label="O que o clique no mapa faz">
+      <div class="segmentado tres">
+        <label><input type="radio" name="ferramenta" value="alvo" checked><span id="rotulo-alvo">Marcar alvo</span></label>
+        <label><input type="radio" name="ferramenta" value="inicio"><span>Marcar início</span></label>
+        <label><input type="radio" name="ferramenta" value="mover"><span>Mover vista</span></label>
+      </div>
+    </div>
+    <div class="tela">
+      <canvas id="mundo" aria-label="Robô, alvo e trajetória no plano x-y"></canvas>
+      <div class="hud" id="hud" aria-live="off"></div>
+    </div>
+    <div class="barra-tela">
+      <p class="dica-tela" id="dica-tela"></p>
+      <div class="zoom">
+        <button type="button" id="btn-zoom-mais" title="Aproximar" aria-label="Aproximar">+</button>
+        <button type="button" id="btn-zoom-menos" title="Afastar" aria-label="Afastar">−</button>
+        <button type="button" id="btn-enquadrar" title="Enquadrar início, alvo e trajetória">Enquadrar</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="cartao historico" aria-label="Histórico no tempo">
+    <div class="cabecalho">
+      <h2>Histórico da corrida <small id="historico-sub"></small></h2>
+    </div>
+    <div class="series" id="series">
+      <canvas id="serie-rho" aria-label="Distância ρ ao alvo no tempo"></canvas>
+      <canvas id="serie-angulos" aria-label="Ângulos α e β no tempo"></canvas>
+      <canvas id="serie-v" aria-label="v no tempo"></canvas>
+      <canvas id="serie-w" aria-label="ω no tempo"></canvas>
+      <canvas id="serie-rodas" aria-label="φ̇ L e φ̇ R no tempo"></canvas>
+      <canvas id="serie-odo" aria-label="Distância entre o robô real e a odometria" hidden></canvas>
+    </div>
+  </section>
+  </div>
+
+  <!-- Direita: poses, robô e simulação -->
+  <aside class="cartao parametros" aria-label="Parâmetros">
+    <h2>Poses</h2>
+    <fieldset class="pose-inicial">
+      <legend>Início <span class="amostra-ponto inicio" aria-hidden="true"></span></legend>
+      <label><span>x<sub>0</sub></span> <span class="campo"><input type="number" id="p-x0" step="0.1"><span class="un">m</span></span></label>
+      <label><span>y<sub>0</sub></span> <span class="campo"><input type="number" id="p-y0" step="0.1"><span class="un">m</span></span></label>
+      <label><span>θ<sub>0</sub></span> <span class="campo"><input type="number" id="p-th0" step="5"><span class="un">°</span></span></label>
+    </fieldset>
+    <fieldset class="pose-inicial" data-leis="pose ponto reta">
+      <legend><span id="legenda-alvo">Alvo</span> <span class="amostra-ponto alvo" aria-hidden="true"></span></legend>
+      <label><span>x*</span> <span class="campo"><input type="number" id="p-xa" step="0.1"><span class="un">m</span></span></label>
+      <label><span>y*</span> <span class="campo"><input type="number" id="p-ya" step="0.1"><span class="un">m</span></span></label>
+      <label data-leis="pose reta"><span>θ*</span> <span class="campo"><input type="number" id="p-tha" step="5"><span class="un">°</span></span></label>
+    </fieldset>
+    <p class="sec" id="reta-abc" data-leis="reta" hidden></p>
+    <fieldset class="pose-inicial" data-leis="caminho" hidden>
+      <legend>Caminho <span class="amostra-ponto alvo" aria-hidden="true"></span></legend>
+      <p class="sec" id="caminho-sec"></p>
+      <div class="botoes">
+        <button type="button" id="btn-cam-desfazer">Apagar o último ponto</button>
+        <button type="button" id="btn-cam-limpar">Recomeçar do início</button>
+      </div>
+    </fieldset>
+    <div class="exemplos">
+      <button type="button" data-exemplo="corke" data-leis="pose">Corke: de (9, 5, 0°) a (5, 5, 90°), de ré</button>
+      <button type="button" data-exemplo="frente" data-leis="pose">Alvo à frente: de (0, 0, 0°) a (3, 1,5, 90°)</button>
+      <button type="button" data-exemplo="lado" data-leis="pose">Estacionar ao lado: de (0, 0, 0°) a (0, 1, 0°)</button>
+      <button type="button" data-exemplo="ponto-corke" data-leis="ponto" hidden>Corke, Fig. 4.8: de (8, 5, 90°) a (5, 5)</button>
+      <button type="button" data-exemplo="ponto-atras" data-leis="ponto" hidden>Alvo atrás: de (0, 0, 0°) a (−2, 1), sem ré</button>
+      <button type="button" data-exemplo="reta-corke" data-leis="reta" hidden>Corke, Fig. 4.10: reta (1, −2, 4) a partir de (8, 5, 90°)</button>
+      <button type="button" data-exemplo="reta-acima" data-leis="reta" hidden>A mesma reta, do outro lado: de (2, 5, −90°)</button>
+      <button type="button" data-exemplo="reta-costas" data-leis="reta" hidden>Sobre a reta, de costas para o percurso: (6, 5, 206,6°)</button>
+      <button type="button" data-exemplo="cam-corke" data-leis="caminho" hidden>Corke, Fig. 4.12 na escala 1:10</button>
+      <button type="button" data-exemplo="cam-zigue" data-leis="caminho" hidden>Zigue-zague (quinas de 90°)</button>
+      <button type="button" data-exemplo="cam-quadrado" data-leis="caminho" hidden>Quadrado de 2 m, fechado</button>
+      <button type="button" data-exemplo="cam-oito" data-leis="caminho" hidden>Oito, com cruzamento</button>
+      <button type="button" data-exemplo="cam-esse" data-leis="caminho" hidden>Curva em S</button>
+    </div>
+
+    <h2 class="separado">Chegada</h2>
+    <div class="grade-campos">
+      <label for="tol-rho">Tolerância de distância</label>
+      <span class="campo"><input type="number" id="tol-rho" min="0.1" max="50" step="0.5" value="1"><span class="un">cm</span></span>
+      <label for="tol-th" data-leis="pose reta">Tolerância de orientação</label>
+      <span class="campo" data-leis="pose reta"><input type="number" id="tol-th" min="0.1" max="30" step="0.5" value="1"><span class="un">°</span></span>
+      <label for="p-tmax">Tempo máximo</label>
+      <span class="campo"><input type="number" id="p-tmax" min="1" max="3600" step="5" value="60"><span class="un">s</span></span>
+    </div>
+
+    <h2 class="separado">Parâmetros do robô</h2>
+    <div class="grade-campos">
+      <label for="p-diametro">Diâmetro da roda</label>
+      <span class="campo"><input type="number" id="p-diametro" min="20" max="600" step="1" value="195"><span class="un">mm</span></span>
+      <label for="p-distancia">Distância entre rodas (L = 2l)</label>
+      <span class="campo"><input type="number" id="p-distancia" min="50" max="1500" step="1" value="381"><span class="un">mm</span></span>
+      <label for="p-wmax">Velocidade máx. da roda</label>
+      <span class="campo"><input type="number" id="p-wmax" min="10" max="1440" step="10" value="360"><span class="un">°/s</span></span>
+    </div>
+    <p class="sec" id="p-derivados"></p>
+    <button type="button" id="btn-p3dx" class="largo">Restaurar P3-DX (slides 26 e 27)</button>
+
+    <!-- Erros do robô real (valem para todas as malhas) e a malha fechada pelos encoders (slide 43 da Aula 14) -->
+    <h2 class="separado">Robô real e odometria</h2>
+    <p class="sec">O controlador não conhece estes erros: comanda as rodas pelo diâmetro nominal.</p>
+    <div class="grade-campos">
+      <label for="err-dl">Diâmetro real da esquerda, a mais</label>
+      <span class="campo"><input type="number" id="err-dl" min="-20" max="20" step="0.5" value="0"><span class="un">mm</span></span>
+      <label for="err-dr">Diâmetro real da direita, a mais</label>
+      <span class="campo"><input type="number" id="err-dr" min="-20" max="20" step="0.5" value="0"><span class="un">mm</span></span>
+      <label for="esc-l">Escorregamento da esquerda</label>
+      <span class="campo"><input type="number" id="esc-l" min="0" max="90" step="1" value="0"><span class="un">%</span></span>
+      <label for="esc-r">Escorregamento da direita</label>
+      <span class="campo"><input type="number" id="esc-r" min="0" max="90" step="1" value="0"><span class="un">%</span></span>
+    </div>
+    <div class="marcar">
+      <label><input type="checkbox" id="odo-ativo"> Malha fechada pela odometria <span class="amostra amostra-odo" aria-hidden="true"></span></label>
+    </div>
+    <div class="grade-campos">
+      <label for="odo-pulsos">Pulsos por volta da roda</label>
+      <span class="campo"><input type="number" id="odo-pulsos" min="1" max="1000000" step="1" value="500"><span class="un">p/v</span></span>
+    </div>
+    <p class="sec" id="odo-sec"></p>
+    <button type="button" id="btn-odo-exemplo" class="largo">Exemplo: direita 2 mm maior, pela odometria</button>
+
+    <h2 class="separado">Simulação</h2>
+    <div class="controle">
+      <div class="linha-rotulo">
+        <label for="p-dt-num">Tempo de amostragem Δt</label>
+        <span class="campo"><input type="number" id="p-dt-num" min="0.005" max="1" step="0.01"><span class="un">s</span></span>
+      </div>
+      <div class="trilho sem-zero"><input type="range" id="p-dt" min="0" max="100" step="1" aria-label="Δt em escala logarítmica"></div>
+      <p class="sec">O controlador lê a pose e muda o comando a cada Δt.</p>
+    </div>
+    <div class="grade-campos">
+      <label for="p-escala">Velocidade da simulação</label>
+      <select id="p-escala">
+        <option value="0.25">×0,25</option>
+        <option value="0.5">×0,5</option>
+        <option value="1" selected>×1 (tempo real)</option>
+        <option value="2">×2</option>
+        <option value="5">×5</option>
+        <option value="10">×10</option>
+      </select>
+    </div>
+
+    <h2 class="separado">Exibir</h2>
+    <div class="marcar">
+      <label><input type="checkbox" id="ex-polares" checked> Grandezas do controlador no mapa</label>
+      <label><input type="checkbox" id="ex-exato"> Arco exato (referência)</label>
+      <label><input type="checkbox" id="ex-amostras" checked> Pontos de cada passo Δt</label>
+      <label><input type="checkbox" id="ex-seguir"> Câmera segue o robô</label>
+    </div>
+    <p class="nota">Mudar ganhos, poses, parâmetros ou Δt recomeça a corrida da pose inicial.</p>
+  </aside>
+</main>
+
+<details class="cartao equacoes">
+  <summary>Equações usadas</summary>
+  <div class="eqs">
+    <div>
+      <h3>Coordenadas polares (Corke, Fig. 4.13)</h3>
+      <p class="eq">ρ = √(Δx² + Δy²), &nbsp; Δx = x* − x, &nbsp; Δy = y* − y</p>
+      <p class="eq">α = atan2(Δy, Δx) ⊖ θ</p>
+      <p class="eq">β = θ* ⊖ θ ⊖ α</p>
+      <p>ρ é a distância até o alvo, α é o ângulo do alvo visto da frente do robô e β é quanto falta girar a reta até o alvo para ela coincidir com a orientação final θ*. Com o alvo na origem e θ* = 0 é o β = −θ − α do livro. ⊖ é a diferença de ângulos levada a (−180°, 180°].</p>
+    </div>
+    <div>
+      <h3>Lei de controle e estabilidade</h3>
+      <p class="eq">v = k<sub>ρ</sub> ρ, &nbsp; ω = k<sub>α</sub> α + k<sub>β</sub> β</p>
+      <p class="eq">k<sub>ρ</sub> &gt; 0, &nbsp; k<sub>β</sub> &lt; 0, &nbsp; k<sub>α</sub> − k<sub>ρ</sub> &gt; 0</p>
+      <p>k<sub>ρ</sub> ρ e k<sub>α</sub> α levam o robô por uma reta até o alvo; k<sub>β</sub> β gira essa reta até β = 0, para ele chegar com θ*. A malha fechada é estável com as três condições, e o equilíbrio é (ρ, α, β) = (0, 0, 0).</p>
+    </div>
+    <div>
+      <h3>Ré</h3>
+      <p>As equações supõem o alvo à frente, α ∈ (−90°, 90°]. Se o alvo começa atrás, o Corke dá ré negando v e γ, com o sentido decidido no início e mantido até o fim. No diferencial, é a mesma lei aplicada ao robô "virado" (frente em θ + 180°, alvo em θ* + 180°) com v trocado de sinal. Como γ = atan(ωL/v), negar v e γ é o mesmo que negar v e manter ω.</p>
+    </div>
+    <div>
+      <h3>Ir a um ponto (Corke, 4.1.1.1)</h3>
+      <p class="eq">θ* = atan2(y* − y, x* − x), &nbsp; v = K<sub>v</sub> ρ, &nbsp; ω = K<sub>h</sub> (θ* ⊖ θ)</p>
+      <p class="eq">α̇ = K<sub>v</sub> sin α − K<sub>h</sub> α &nbsp; ⇒ &nbsp; K<sub>h</sub> &gt; K<sub>v</sub> &gt; 0</p>
+      <p>O Corke esterça a roda, γ = K<sub>h</sub> (θ* ⊖ θ); no diferencial a mesma lei vai para ω. θ* ⊖ θ é o α da pose, e como v/ρ = K<sub>v</sub>, a direção não depende da distância: α vai a zero se K<sub>h</sub> &gt; K<sub>v</sub>. É a lei da pose com k<sub>β</sub> = 0, então a orientação final fica livre e depende da partida (Fig. 4.8). Com 2/π &lt; K<sub>h</sub>/K<sub>v</sub> &lt; 1, α para onde K<sub>v</sub> sin α = K<sub>h</sub> α e o robô chega em espiral; abaixo de 2/π, a espiral é para fora. O controlador nunca dá ré, porque v = K<sub>v</sub> ρ ≥ 0.</p>
+    </div>
+    <div>
+      <h3>Seguir uma reta (Corke, 4.1.1.2)</h3>
+      <p class="eq">ax + by + c = 0, &nbsp; d = (ax + by + c) / √(a² + b²), &nbsp; θ* = atan2(a, −b)</p>
+      <p class="eq">ω = K<sub>d</sub> d + K<sub>h</sub> (θ* ⊖ θ), &nbsp; v constante</p>
+      <p class="eq">d̈ + K<sub>h</sub> ḋ + v K<sub>d</sub> d = 0, &nbsp; ω<sub>n</sub> = √(v K<sub>d</sub>), &nbsp; ζ = K<sub>h</sub> / (2√(v K<sub>d</sub>))</p>
+      <p>θ* é a direção do percurso e d &gt; 0 com o robô à direita dela; K<sub>d</sub> d vira o robô para a reta e K<sub>h</sub> (θ* ⊖ θ) o alinha com ela (Fig. 4.9; o sentido de θ* confere com a Fig. 4.10). No mapa, a reta é marcada por um ponto dela e pela direção θ*. Perto da reta a malha é de segundo grau: com ζ &lt; 1 o robô passa da reta antes de assentar, com sobressinal exp(−πζ/√(1 − ζ²)). Ela não tem fim: a corrida para quando |d| e o erro de direção ficam dentro das tolerâncias.</p>
+      <p>Com uma roda maior, andar reto pede um ω ≠ 0, e a lei proporcional só o dá com d ≠ 0: sobra um erro estacionário d = ω/K<sub>d</sub>, com ω = −v (r<sub>r</sub> − r) / (l (r<sub>r</sub> + r)). Com a direita 2 mm maior e os ganhos padrão, são 26,8 mm à esquerda, maior que a tolerância de 1 cm. Na pose e no ponto isso não acontece, porque v → 0 no alvo e o viés some junto.</p>
+    </div>
+    <div>
+      <h3>Seguir um caminho: pure pursuit (Corke, 4.1.1.3)</h3>
+      <p class="eq">j = arg min<sub>i</sub> ‖p<sub>r</sub> − p<sub>i</sub>‖, &nbsp; k: o primeiro i &gt; j com ‖p<sub>i</sub> − p<sub>j</sub>‖ ≥ d</p>
+      <p class="eq">θ* = atan2(y<sub>k</sub> − y, x<sub>k</sub> − x), &nbsp; ω = K<sub>h</sub> (θ* ⊖ θ), &nbsp; v constante</p>
+      <p>O caminho são os waypoints ligados por retas e amostrados a cada 1 cm. p<sub>j</sub> é o ponto do caminho mais perto do robô e p<sub>k</sub>, o ponto de perseguição, a d adiante dele: a "cenoura" que anda na frente do robô. A lei é a do ponto com p<sub>k</sub> como alvo. O Corke procura j no caminho inteiro; aqui a busca começa no j anterior e vai até max(1 m, 2d) adiante, para j não saltar de trecho quando o caminho se cruza (no cruzamento do oito, a busca no caminho inteiro faz j saltar de ramo). No fim, quando p<sub>k</sub> é o último ponto, v cai para v ρ/d: a chegada é a lei do ponto com K<sub>v</sub> = v/d. O robô corta as quinas, e o corte é proporcional a d quando d ≫ v/K<sub>h</sub> (com K<sub>h</sub> = 20, dobrar d dobra o corte; com K<sub>h</sub> = 2, cresce mais que isso).</p>
+    </div>
+    <div>
+      <h3>Do controlador às rodas</h3>
+      <p class="eq">φ̇<sub>L</sub> = (v − ω l) / r, &nbsp; φ̇<sub>R</sub> = (v + ω l) / r</p>
+      <p>O Corke escreve a lei para a bicicleta, com o esterçamento γ = atan(ωL/v); no diferencial o comando já é (v, ω). Se uma roda passar do limite, as duas são reduzidas na mesma proporção, o que mantém o raio de curva R = v/ω. Longe do alvo, v = k<sub>ρ</sub> ρ fica grande e as rodas saturam.</p>
+    </div>
+    <div>
+      <h3>Malha fechada pela odometria (slide 43 da Aula 14)</h3>
+      <p class="eq">Δs<sub>l</sub> = r · (2π/N) · Δpulsos<sub>l</sub>, &nbsp; Δs<sub>r</sub> = r · (2π/N) · Δpulsos<sub>r</sub></p>
+      <p class="eq">Δs = (Δs<sub>r</sub> + Δs<sub>l</sub>) / 2, &nbsp; Δθ = (Δs<sub>r</sub> − Δs<sub>l</sub>) / (2l)</p>
+      <p>A estimativa segue o modelo incremental com esses Δs e Δθ, usando o raio nominal r e só pulsos inteiros. O robô real anda pelo arco exato com os raios reais, e cada roda só leva ao chão (1 − escorregamento) do que girou. O encoder mede o giro da roda, não o chão. O controlador só vê a estimativa, então para quando a <i>estimativa</i> chega ao alvo. Os pulsos dependem só dos comandos, e os comandos só da estimativa: o robô real não entra na malha.</p>
+    </div>
+    <div>
+      <h3>Modelos (Aula 14)</h3>
+      <p class="eq">diferencial: x<sub>k+1</sub> = x<sub>k</sub> + v cos θ<sub>k</sub> Δt, …</p>
+      <p class="eq">incremental: x<sub>k</sub> = x<sub>k−1</sub> + Δs cos(θ<sub>k−1</sub> + Δθ/2), …</p>
+      <p>Cada modelo tem a própria malha fechada: o controlador lê a pose verdadeira daquele modelo, como se houvesse um sensor perfeito de posição. Os erros de diâmetro e o escorregamento valem também aqui, e a malha os corrige (na reta, sobra o erro estacionário d = ω/K<sub>d</sub>). O arco exato, com v e ω constantes no passo, serve de referência. O comando fica constante durante cada Δt.</p>
+    </div>
+  </div>
+</details>
+
+<footer class="rodape">
+  <p>Geometria do P3-DX dos slides 26 e 27 da Aula 14 (r = 97,5 mm, l = 190,5 mm). As leis estão em <code>controladores.js</code> e são conferidas por <code>testes/teste_controladores.js</code>: na pose, no ponto e na reta, de 96 poses iniciais, todas chegam com os ganhos padrão, e cada condição violada faz a malha falhar; no caminho, os cinco caminhos prontos chegam ao fim.</p>
+</footer>
+
+<script src="cinematica.js"></script>
+<script src="controladores.js"></script>
+<script src="simulacao.js"></script>
+</body>
+</html>

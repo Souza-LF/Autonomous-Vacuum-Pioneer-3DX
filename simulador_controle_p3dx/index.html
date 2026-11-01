@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controle do P3-DX</title>
+<meta name="description" content="As quatro leis de controle do Corke (Seção 4.1.1) no Pioneer P3-DX diferencial: ir a uma pose, ir a um ponto, seguir uma reta e seguir um caminho. Escolha uma para abrir a simulação.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;500;600;700&family=STIX+Two+Text:ital,wght@0,400;0,600;1,400;1,600&display=swap">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body class="escolha">
+
+<header class="topo">
+  <div class="titulo">
+    <h1>Controle do Pioneer P3-DX</h1>
+    <p>ENE122 Robótica Móvel · Mini Desafio 01b · Corke, <i>Robotics, Vision and Control</i>, Seção 4.1.1</p>
+  </div>
+</header>
+
+<p class="intro">Quatro leis de controle do Corke no P3-DX diferencial. Em todas, o controlador dá (v, ω), as rodas saem da cinemática inversa e saturam no limite, e o robô anda pelos modelos diferencial e incremental da Aula 14; a malha também pode ser fechada pela odometria. Cada cartão mostra o exemplo do livro rodando no modelo diferencial. Escolha um algoritmo para abrir a simulação.</p>
+
+<main class="cartoes">
+  <a class="cartao lei-cartao principal" href="simulacao.html?algoritmo=pose" data-lei="pose">
+    <div class="cabeca">
+      <h2>Ir a uma pose <small>driving to a configuration · 4.1.1.4</small></h2>
+      <span class="selo">Principal</span>
+    </div>
+    <canvas class="miniatura" aria-hidden="true"></canvas>
+    <p class="legenda-mini"></p>
+    <p class="lei"><span class="eq">v = k<sub>ρ</sub> ρ</span><span class="eq">ω = k<sub>α</sub> α + k<sub>β</sub> β</span></p>
+    <p>Chega a uma posição <em>e</em> a uma orientação final, dando ré quando o alvo está atrás. É o algoritmo do grupo, com as condições de estabilidade, a ré e o efeito do Δt.</p>
+    <p class="no-mapa"><b>No mapa:</b> o alvo e, arrastando, a orientação final θ*.</p>
+    <span class="abrir">Abrir a simulação →</span>
+  </a>
+
+  <a class="cartao lei-cartao" href="simulacao.html?algoritmo=ponto" data-lei="ponto">
+    <div class="cabeca">
+      <h2>Ir a um ponto <small>driving to a point · 4.1.1.1</small></h2>
+    </div>
+    <canvas class="miniatura" aria-hidden="true"></canvas>
+    <p class="legenda-mini"></p>
+    <p class="lei"><span class="eq">v = K<sub>v</sub> ρ</span><span class="eq">ω = K<sub>h</sub> (θ* ⊖ θ)</span></p>
+    <p>Vira para o alvo e vai até ele; a orientação final fica livre. Não dá ré, e com K<sub>h</sub> &lt; K<sub>v</sub> o ângulo até o alvo não vai a zero: o robô anda em espiral.</p>
+    <p class="no-mapa"><b>No mapa:</b> só a posição do alvo.</p>
+    <span class="abrir">Abrir a simulação →</span>
+  </a>
+
+  <a class="cartao lei-cartao" href="simulacao.html?algoritmo=reta" data-lei="reta">
+    <div class="cabeca">
+      <h2>Seguir uma reta <small>driving along a line · 4.1.1.2</small></h2>
+    </div>
+    <canvas class="miniatura" aria-hidden="true"></canvas>
+    <p class="legenda-mini"></p>
+    <p class="lei"><span class="eq">ω = K<sub>d</sub> d + K<sub>h</sub> (θ* ⊖ θ)</span><span class="eq">v constante</span></p>
+    <p>Encontra a reta e segue por ela, sem fim. Perto da reta é um sistema de segundo grau, com ζ e ω<sub>n</sub> dados pelos ganhos.</p>
+    <p class="no-mapa"><b>No mapa:</b> um ponto da reta e, arrastando, o sentido do percurso.</p>
+    <span class="abrir">Abrir a simulação →</span>
+  </a>
+
+  <a class="cartao lei-cartao" href="simulacao.html?algoritmo=caminho" data-lei="caminho">
+    <div class="cabeca">
+      <h2>Seguir um caminho <small>pure pursuit · 4.1.1.3</small></h2>
+    </div>
+    <canvas class="miniatura" aria-hidden="true"></canvas>
+    <p class="legenda-mini"></p>
+    <p class="lei"><span class="eq">ω = K<sub>h</sub> (θ* ⊖ θ), θ* rumo a p<sub>k</sub></span><span class="eq">v constante</span></p>
+    <p>Persegue um ponto p<sub>k</sub> que fica d adiante do ponto do caminho mais perto do robô, e por isso corta as quinas.</p>
+    <p class="no-mapa"><b>No mapa:</b> os waypoints, para acrescentar, arrastar, inserir ou apagar.</p>
+    <span class="abrir">Abrir a simulação →</span>
+  </a>
+</main>
+
+<footer class="rodape">
+  <p>Geometria do P3-DX dos slides 26 e 27 da Aula 14 (r = 97,5 mm, l = 190,5 mm), limite de 360°/s em cada roda e Δt = 0,05 s. As miniaturas rodam as mesmas funções da simulação (<code>controladores.js</code>), com os ganhos padrão de cada lei.</p>
+</footer>
+
+<script src="cinematica.js"></script>
+<script src="controladores.js"></script>
+<script src="escolha.js"></script>
+</body>
+</html>
