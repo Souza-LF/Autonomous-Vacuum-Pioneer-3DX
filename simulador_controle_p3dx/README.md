@@ -51,8 +51,8 @@ vão para o git.
 
 | Região | O que tem |
 | --- | --- |
-| Topo | O link de volta à escolha, o seletor do algoritmo, os dois modelos da pose (diferencial e incremental), que rodam juntos para comparar, e Pausar/Reiniciar. |
-| Esquerda | A lei do algoritmo escolhido, com um slider e um campo para cada ganho (a marca na trilha é o zero, porque o sinal decide a estabilidade). As condições ficam em verde ou vermelho, com um aviso quando alguma não vale. Um texto diz o que os ganhos fazem: a espiral do ponto, ζ e ω<sub>n</sub> da reta, a chegada do caminho. Embaixo, "Agora": as grandezas do controlador, v e ω comandados e executados, as rodas e o aviso de saturação. |
+| Topo | O link de volta à escolha, o seletor do algoritmo, os dois modelos da pose (diferencial e incremental), que rodam juntos para comparar, Pausar/Continuar e Reiniciar. |
+| Esquerda | A lei do algoritmo escolhido, com um slider e um campo para cada ganho (a marca na trilha é o zero, porque o sinal decide a estabilidade). As condições ficam em verde ou vermelho, com um aviso quando alguma não vale. Na pose, uma quarta etiqueta, só contornada, mostra a condição forte de Siegwart e Nourbakhsh, que não decide a chegada. Um texto diz o que os ganhos fazem: a condição forte da pose, a espiral do ponto, ζ e ω<sub>n</sub> da reta, a chegada do caminho. Embaixo, "Agora": as grandezas do controlador, v e ω comandados e executados, as rodas e o aviso de saturação. |
 | Centro | O mapa, com três ferramentas: marcar o alvo (a reta, ou editar o caminho), marcar o início e mover a vista. Mostra o rastro de cada modelo com um ponto por passo Δt e as grandezas do controlador desenhadas: ρ, α e β da Fig. 4.13 na pose; d e θ* ⊖ θ na reta; p<sub>j</sub>, p<sub>k</sub>, o círculo de raio d e α no caminho. O quadro de leitura diz quando cada modelo chegou e com que erro. Logo abaixo, o histórico da corrida inteira: distância, ângulos, v, ω (comando tracejado e executado), as rodas com o limite e, com a odometria, o desvio entre o robô real e a estimativa. Acima do mapa, a aba "Mapa 2D \| Vista 3D" troca o mapa pela vista 3D (seção seguinte). |
 | Direita | Poses de início e alvo (na reta, também em (a, b, c)), o caminho (número de waypoints, comprimento e o tempo mínimo para percorrê-lo), os exemplos de cada algoritmo, as tolerâncias de chegada e o tempo máximo, os parâmetros do robô, o robô real e a odometria (diâmetro a mais de cada roda, escorregamento, pulsos por volta, malha pela odometria), Δt, a velocidade da simulação e o que exibir. |
 | Embaixo | "Equações usadas", com as leis, as condições e as escolhas de cada algoritmo. |
@@ -82,7 +82,8 @@ simulação e não muda nada nele: com ela aberta, a corrida continua bit a bit 
   exibido (transparente) e, com a odometria, o robô real e a estimativa (transparente), ligados por
   uma linha tracejada. Os rastros ficam no chão; o do arco exato e o da estimativa, tracejados.
 - No chão também ficam o início, o alvo (com um poste e o nome), a reta com o sentido do percurso e
-  o caminho com os waypoints numerados, sobre uma grade cujo passo acompanha o tamanho da cena.
+  o caminho com os waypoints numerados, sobre uma grade cujo passo acompanha o tamanho da cena. As
+  letras x e y dos eixos saem quando cairiam em cima de outro rótulo, como o do início na origem.
 - Arrastar gira a câmera; com o botão direito (ou dois dedos), desloca; a roda do mouse aproxima,
   na direção do cursor. "De cima" olha o chão de cima e "Enquadrar" volta à vista inicial. Enquanto
   a câmera não é mexida, ela acompanha o robô quando ele chega perto da borda; "Câmera segue o robô",
@@ -139,6 +140,15 @@ Medido com uma grade de 96 poses iniciais (1, 2 e 4 m do alvo, 8 direções, 4 o
 - Com uma condição violada, em 120 s: k<sub>β</sub> > 0, 0 de 96; k<sub>ρ</sub> < 0, 0 de 96;
   k<sub>α</sub> < k<sub>ρ</sub>, 4 de 96.
 - (1, 2, −1) cumpre as três condições e chega nas 96, mas em 12 delas α sai de (−90°, 90°].
+- Esses ganhos violam a **condição forte** de Siegwart e Nourbakhsh (*Introduction to Autonomous Mobile
+  Robots*, 2004, seção 3.6.2, eq. 3.65): com k<sub>ρ</sub> > 0 e k<sub>β</sub> < 0,
+  k<sub>α</sub> + 5/3 k<sub>β</sub> − 2/π k<sub>ρ</sub> > 0 garante que α não sai de (−90°, 90°], ou
+  seja, que o robô não troca de sentido na aproximação. Os ganhos padrão a cumprem (margem 0,35);
+  (1, 2, −1), não (−0,30).
+  - Numa varredura de 144 conjuntos de ganhos que cumprem as três condições, nos 92 que cumprem a forte α
+    nunca saiu do intervalo nas 96 poses, e nos 52 que não cumprem saiu em pelo menos uma.
+  - Os testes conferem os seis conjuntos mais perto da fronteira de cada lado: com margens de +0,008 a
+    +0,073, nenhuma pose tira α do intervalo; com margens de −0,034 a −0,137, de 6 a 12 poses tiram.
 - As 48 com o alvo atrás chegam de ré em 15,3 s e 2,93 m de percurso, em média; sem ré, em 17,5 s e
   4,04 m.
 - Exemplo do Corke, de (9, 5, 0°) a (5, 5, 90°): chega de ré em 16,55 s no diferencial e em 17,25 s
@@ -246,12 +256,13 @@ Medido no exemplo do Corke da pose, com 500 pulsos por volta:
 node testes/teste_controladores.js
 ```
 
-São 60 conferências, em 11 seções:
+São 62 conferências, em 11 seções:
 
 1. coordenadas polares: casos feitos à mão, o β = −θ − α do livro e a invariância a girar a cena;
 2. condições de estabilidade e escolha da ré;
 3. convergência da pose nas 96 poses e nos três modelos, a ré e o exemplo do Corke;
-4. cada condição violada faz a malha falhar;
+4. cada condição violada faz a malha falhar, e a condição forte separa os ganhos em que α sai de
+   (−90°, 90°];
 5. saturação das rodas: o limite é respeitado e o raio de curva do comando, também;
 6. Δt: ordem 1 do diferencial e ordem 2 do incremental contra o arco exato;
 7. malha pela odometria;
@@ -271,20 +282,22 @@ node testes/navegador/rodar.mjs
 ```
 
 O `msedge.exe` fica em `C:\Program Files (x86)\Microsoft\Edge\Application`. O `rodar.mjs` roda os
-seis testes em sequência (127 conferências) e sai com erro se algum falhar; `rodar.mjs 3d` roda só
+seis testes em sequência (137 conferências) e sai com erro se algum falhar; `rodar.mjs 3d` roda só
 os que têm "3d" no nome. `PORTA` e `PORTA_CDP` mudam as portas do servidor (8000) e do Edge (9333).
 As fotos dos testes vão para `testes/navegador/fotos/`, fora do git.
 
 - Em cada algoritmo, a corrida na tela é bit a bit a de `simular()` nos três modelos, e a da
   odometria é a de `simularOdometria()`; com a vista 3D aberta, também.
 - Também são conferidos:
-  - os ganhos e as condições;
+  - os ganhos e as condições, também a forte, com os ganhos padrão e com (1, 2, −1);
+  - os números dos eixos com passo de 2,5 (no histórico e no mapa), as legendas dos gráficos dentro
+    da largura e o botão "Continuar";
   - a edição do alvo, da reta e do caminho no mapa (acrescentar, arrastar, inserir, apagar);
   - os exemplos e o seletor;
   - a URL do algoritmo;
   - as legendas e a animação da página de escolha;
   - na vista 3D: robôs, giro e diâmetro das rodas e rastros iguais aos do estado, os rótulos de
-    cada algoritmo, "De cima", "Enquadrar", "Câmera segue o robô", o `#3d` da URL e o aviso quando a
+    cada algoritmo, as letras dos eixos que saem quando cobririam outro rótulo, "De cima", "Enquadrar", "Câmera segue o robô", o `#3d` da URL e o aviso quando a
     página é aberta como arquivo ou quando o three.js não chega;
   - o tema escuro e a página a 390 px, nas duas vistas;
   - o console sem erros.

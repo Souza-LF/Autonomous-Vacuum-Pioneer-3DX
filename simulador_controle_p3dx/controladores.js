@@ -50,6 +50,15 @@
     ];
   }
 
+  // Condição "forte" de Siegwart e Nourbakhsh (Introduction to Autonomous Mobile Robots, 2004,
+  // seção 3.6.2, eq. 3.65): com kρ > 0 e kβ < 0, kα + 5/3·kβ − 2/π·kρ > 0 garante que α não sai de
+  // (−π/2, π/2] na aproximação, ou seja, que o robô não troca de sentido. Não decide a chegada: só se
+  // o alvo pode passar para trás do robô no caminho. A margem é o lado esquerdo da desigualdade.
+  function condicaoFortePose(k) {
+    const margem = k.alpha + (5 / 3) * k.beta - (2 / Math.PI) * k.rho;
+    return { texto: 'kα + 5/3 kβ − 2/π kρ > 0', margem, ok: k.rho > 0 && k.beta < 0 && margem > 0 };
+  }
+
   // As equações polares supõem o alvo à frente, α ∈ (−π/2, π/2]. Com o alvo atrás, o Corke
   // dá ré negando v e γ, com o sentido escolhido pelo α inicial e mantido até o fim.
   function sentidoPose(P, alvo) {
@@ -395,7 +404,7 @@
   }
 
   return {
-    angulo, polares, condicoesPose, sentidoPose, comandoPose, GANHOS_POSE,
+    angulo, polares, condicoesPose, condicaoFortePose, sentidoPose, comandoPose, GANHOS_POSE,
     comandoPonto, condicoesPonto, equilibrioPonto, GANHOS_PONTO,
     retaDaPose, distanciaReta, direcaoReta, comandoReta, condicoesReta, amortecimentoReta, GANHOS_RETA,
     amostrarCaminho, maisPerto, perseguido, comandoCaminho, condicoesCaminho, GANHOS_CAMINHO, CAMINHOS,

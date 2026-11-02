@@ -130,7 +130,13 @@
     for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= x) return m * p;
     return 10 * p;
   }
-  const casasDoPasso = (p) => Math.max(0, -Math.floor(Math.log10(p) + 1e-9));
+  // casas decimais para escrever os múltiplos do passo sem arredondar: 0,5 pede uma, 0,25 pede duas e
+  // 2,5 pede uma (contar só pela potência de 10 escreveria 2,5 e 7,5 como "3" e "8")
+  function casasDoPasso(p) {
+    let casas = Math.max(0, -Math.floor(Math.log10(p) + 1e-9));
+    while (casas < 6 && Math.abs(Number(p.toFixed(casas)) - p) > p * 1e-9) casas++;
+    return casas;
+  }
   const graus = (a) => num(K.angulo(a) * GRAU, 1);
 
   function lerCores() {
@@ -342,8 +348,9 @@
     sujo.series = true;
   }
 
+  // parado no meio da corrida, o botão continua de onde parou; parado no começo, inicia
   function atualizarBotaoRodar() {
-    el.rodar.textContent = est.rodando ? 'Pausar' : est.fim ? 'Rodar de novo' : 'Iniciar';
+    el.rodar.textContent = est.rodando ? 'Pausar' : est.fim ? 'Rodar de novo' : est.passos ? 'Continuar' : 'Iniciar';
   }
 
   function alternar() {
@@ -1058,7 +1065,7 @@
     if (est.lei === 'reta') return `d = ${num(u.d, 3)} m · θ* ⊖ θ = ${graus(u.erro)}°`;
     if (est.lei === 'ponto') return `ρ = ${num(u.rho, 3)} m · α = ${graus(u.alpha)}°`;
     if (est.lei === 'caminho') return `desvio = ${num(u.desvio, 3)} m · α = ${graus(u.alpha)}° · s = ${num(u.s, 2)} m`;
-    return `ρ =${num(u.rho, 3)} m · α = ${graus(u.alpha)}° · β = ${graus(u.beta)}°${s.e.sentido < 0 ? ' · de ré' : ''}`;
+    return `ρ = ${num(u.rho, 3)} m · α = ${graus(u.alpha)}° · β = ${graus(u.beta)}°${s.e.sentido < 0 ? ' · de ré' : ''}`;
   }
 
   // Como cada modelo está: chegou (quando e com que erro), não chegou no tempo máximo, ou a caminho
@@ -1148,15 +1155,24 @@
     const { ctx, w, h } = c;
     const t0 = 0, t1 = Math.max(est.t, 10);
     const dados = est.hist;
-    // a legenda fica ao lado do título; se não couber, desce para uma segunda linha
+    // a legenda fica ao lado do título; se não couber, desce para a linha de baixo, e um item que ainda
+    // passe da largura (num gráfico estreito) desce mais uma
     const ultimo = dados[dados.length - 1];
     const rotulos = linhas.map((L) => `${L.nome}${ultimo ? ' = ' + num(L.valor(ultimo), opcoes.casas) : ''}`);
     ctx.font = `600 12px ${fonte.ui}`;
     const larguraTitulo = ctx.measureText(titulo).width;
     ctx.font = `11px ${fonte.ui}`;
-    const largura = rotulos.reduce((soma, t) => soma + 14 + ctx.measureText(t).width + 28, 0) - 28;
-    const duasLinhas = 8 + larguraTitulo + 14 + largura > w - 6;
-    const m = { esq: 50, dir: 10, topo: duasLinhas ? 38 : 24, base: 20 };
+    const larguras = rotulos.map((t) => 14 + textoIndice(ctx, t, 0, 0, 'left', true));
+    const largura = larguras.reduce((soma, l) => soma + l + 28, 0) - 28;
+    const lugar = [];   // [x, linha] de cada item da legenda; a linha 0 é a do título
+    let cursor = 8 + larguraTitulo + 14, linha = 0;
+    if (cursor + largura > w - 6) { cursor = 8; linha = 1; }
+    for (const l of larguras) {
+      if (cursor > 8 && cursor + l > w - 6) { cursor = 8; linha++; }
+      lugar.push([cursor, linha]);
+      cursor += l + 28;
+    }
+    const m = { esq: 50, dir: 10, topo: linha ? 22 + 16 * linha : 24, base: 20 };
     const W = w - m.esq - m.dir, H = h - m.topo - m.base;
     let lo = Infinity, hi = -Infinity;
     for (const L of linhas) for (const p of dados) { const y = L.valor(p); lo = Math.min(lo, y); hi = Math.max(hi, y); }
@@ -1194,7 +1210,9 @@
     for (let s = 0; s <= t1 + 1e-9; s += passoT) {
       const x = Math.round(px(s)) + 0.5;
       ctx.moveTo(x, m.topo); ctx.lineTo(x, m.topo + H);
-      ctx.fillText(`${num(s, casasDoPasso(passoT))} s`, x, h - 5);
+      // o número da última linha, na borda do gráfico, não passa dela
+      const texto = `${num(s, casasDoPasso(passoT))} s`;
+      ctx.fillText(texto, Math.min(x, w - 2 - ctx.measureText(texto).width / 2), h - 5);
     }
     ctx.stroke();
     if (lo < 0 && hi > 0) {
@@ -1227,10 +1245,9 @@
     ctx.font = `600 12px ${fonte.ui}`;
     ctx.fillStyle = cor.texto;
     ctx.fillText(titulo, 8, 15);
-    let x = duasLinhas ? 8 : 8 + larguraTitulo + 14;
-    const yLeg = duasLinhas ? 31 : 15;
     ctx.font = `11px ${fonte.ui}`;
     linhas.forEach((L, i) => {
+      const [x, k] = lugar[i], yLeg = 15 + 16 * k;
       // série tracejada: quadrado vazado na legenda
       if (L.tracejado) {
         ctx.strokeStyle = L.cor;
@@ -1241,7 +1258,7 @@
         ctx.fillRect(x, yLeg - 8, 10, 10);
       }
       ctx.fillStyle = cor.texto;
-      x += textoIndice(ctx, rotulos[i], x + 14, yLeg, 'left') + 28;
+      textoIndice(ctx, rotulos[i], x + 14, yLeg, 'left');
     });
   }
 
@@ -1302,10 +1319,17 @@
     { lei: 'caminho', chave: 'v', faixa: 'kCv', campo: 'kCvNum', casas: 2 },
   ];
 
-  // O que a escolha de ganhos faz, além das condições: no ponto, onde α para; na reta, ζ e ωn; no
-  // caminho, a chegada (a lei do ponto com Kv = v/d) e o corte das quinas
+  // O que a escolha de ganhos faz, além das condições: na pose, a condição forte; no ponto, onde α para;
+  // na reta, ζ e ωn; no caminho, a chegada (a lei do ponto com Kv = v/d) e o corte das quinas
   function textoLei() {
     const k = est.k;
+    if (est.lei === 'pose') {
+      if (!K.condicoesPose(k).every((c) => c.ok)) return '';
+      const f = K.condicaoFortePose(k);
+      return f.ok
+        ? `Condição forte (Siegwart e Nourbakhsh): kα + 5/3 kβ − 2/π kρ = ${num(f.margem, 2)} > 0. α nunca sai de (−90°, 90°]: o alvo fica sempre à frente do robô, no sentido em que ele anda.`
+        : `kα + 5/3 kβ − 2/π kρ = ${num(f.margem, 2)}: sem a condição forte (Siegwart e Nourbakhsh), α pode sair de (−90°, 90°], e então o alvo passa para trás do robô e ρ cresce por um tempo. As três condições continuam valendo.`;
+    }
     if (est.lei === 'ponto') {
       const ae = K.equilibrioPonto(k);
       if (ae === null) return '';
@@ -1331,6 +1355,9 @@
     return '';
   }
 
+  // kρ, kα, kβ e Kv, Kh, Kd com o índice subscrito, nas etiquetas e no texto da lei
+  const comIndices = (t) => t.replace(/k(ρ|α|β)/g, 'k<sub>$1</sub>').replace(/K(v|h|d)/g, 'K<sub>$1</sub>');
+
   const AVISO = {
     pose: 'Uma condição de estabilidade não vale: o robô não deve chegar ao alvo.',
     ponto: 'Uma condição não vale: α não vai a zero, ou o robô nem chega ao ponto.',
@@ -1345,12 +1372,15 @@
       if (document.activeElement !== el[g.campo]) el[g.campo].value = Number(k[g.chave].toFixed(g.casas));
     }
     const conds = CONDICOES[est.lei](est.k);
-    el.condicoes.innerHTML = conds.map((c) =>
-      `<span class="cond ${c.ok ? 'ok' : 'ruim'}">${c.texto.replace(/k(ρ|α|β)/g, 'k<sub>$1</sub>').replace(/K(v|h|d)/g, 'K<sub>$1</sub>')} ${c.ok ? '✓' : '✗'}</span>`).join('');
+    // na pose, a condição forte vem numa quarta etiqueta, só contornada (e neutra quando não vale): ela
+    // não decide a chegada, só se α fica em (−90°, 90°]
+    const forte = est.lei === 'pose' ? K.condicaoFortePose(est.k) : null;
+    el.condicoes.innerHTML = conds.map((c) => `<span class="cond ${c.ok ? 'ok' : 'ruim'}">${comIndices(c.texto)} ${c.ok ? '✓' : '✗'}</span>`).join('') +
+      (forte ? `<span class="cond forte ${forte.ok ? 'ok' : 'neutra'}" title="Condição forte de Siegwart e Nourbakhsh: α não sai de (−90°, 90°]">${comIndices(forte.texto)} ${forte.ok ? '✓' : '✗'}</span>` : '');
     el.avisoInstavel.textContent = AVISO[est.lei];
     el.avisoInstavel.hidden = conds.every((c) => c.ok);
     const texto = textoLei();
-    el.leiSec.innerHTML = texto.replace(/K(v|h|d)/g, 'K<sub>$1</sub>');
+    el.leiSec.innerHTML = comIndices(texto);
     el.leiSec.hidden = !texto;
     escreverCaminho();   // o tempo do percurso depende de v
   }

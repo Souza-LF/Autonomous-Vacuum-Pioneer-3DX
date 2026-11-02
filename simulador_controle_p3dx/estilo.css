@@ -326,7 +326,8 @@ input[type="range"] { display: block; width: 100%; margin: 0; accent-color: var(
 .cor-beta { --cor: var(--beta); }
 .controle .simb { color: var(--cor, var(--texto)); }
 
-/* as três condições de estabilidade, cada uma verde (vale) ou vermelha (não vale) */
+/* as condições de estabilidade, cada uma verde (vale) ou vermelha (não vale); a condição forte da pose,
+   que não decide a chegada, é só contornada, e fica neutra quando não vale */
 .condicoes { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; }
 .cond {
   padding: 2px 9px;
@@ -338,6 +339,9 @@ input[type="range"] { display: block; width: 100%; margin: 0; accent-color: var(
 }
 .cond.ok { background: var(--ok-fundo); color: var(--ok-texto); }
 .cond.ruim { background: var(--ruim-fundo); color: var(--ruim-texto); }
+.cond.forte { padding: 1px 8px; border: 1px solid currentColor; background: none; }
+.cond.forte.ok { color: var(--ok-texto); }
+.cond.forte.neutra { border-style: dashed; color: var(--texto-suave); }
 
 .aviso {
   margin: 0 0 10px;

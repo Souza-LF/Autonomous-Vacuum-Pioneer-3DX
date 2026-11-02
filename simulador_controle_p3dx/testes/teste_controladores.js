@@ -8,7 +8,8 @@
  *    × 4 orientações), nos três modelos; o que a ré muda quando o alvo está atrás; e o exemplo
  *    do Corke, de (9, 5, 0) a (5, 5, 90°).
  * 4. Cada condição violada faz a malha falhar; e um caso que cumpre as três condições mas
- *    deixa α sair de (−π/2, π/2].
+ *    deixa α sair de (−π/2, π/2]. A condição forte de Siegwart e Nourbakhsh separa os dois casos,
+ *    também nos ganhos mais perto da fronteira dela.
  * 5. Saturação das rodas dentro da malha: o limite é respeitado e o raio de curva do comando, não.
  * 6. Δt: distância entre a trajetória de cada modelo e a do arco exato com o mesmo Δt
  *    (Euler cai com Δt, o incremental com Δt²).
@@ -165,6 +166,30 @@ for (const [nome, k, maxChegam] of [
   const r = rodarGrade(k, {});
   confere(r.chegaram === GRADE.length && r.saiuI1 > 0,
     `(1, 2, −1) cumpre as três condições: chegam ${r.chegaram} de ${GRADE.length}, mas α sai de (−π/2, π/2] em ${r.saiuI1}`);
+}
+{
+  // a condição forte de Siegwart e Nourbakhsh (eq. 3.65), kα + 5/3·kβ − 2/π·kρ > 0, é a que esses ganhos
+  // violam. Numa varredura de 144 conjuntos que cumprem as três condições, ela separou todos; aqui, os
+  // seis mais perto da fronteira de cada lado.
+  const f = K.condicaoFortePose;
+  const padrao = f(K.GANHOS_POSE), um = f({ rho: 1, alpha: 2, beta: -1 });
+  confere(padrao.ok && Math.abs(padrao.margem - 0.3484) < 1e-4 && !um.ok && Math.abs(um.margem + 0.3033) < 1e-4,
+    `condição forte: os ganhos da interface a cumprem (margem ${padrao.margem.toFixed(4)}), (1, 2, −1) não (${um.margem.toFixed(4)})`);
+  const perto = [
+    [0.25, 0.375, -0.125], [0.5, 0.75, -0.25], [1, 1.5, -0.5], [0.25, 0.3, -0.0625], [2, 3, -1], [0.5, 0.6, -0.125],
+    [0.25, 0.75, -0.375], [0.25, 0.3, -0.125], [0.5, 1.5, -0.75], [0.25, 0.5, -0.25], [0.5, 0.6, -0.25], [1, 3, -1.5],
+  ];
+  let certos = 0;
+  const lista = [];
+  for (const [rho, alpha, beta] of perto) {
+    const k = { rho, alpha, beta };
+    const r = rodarGrade(k, {});
+    if (f(k).ok === (r.saiuI1 === 0)) certos++;
+    lista.push(`${f(k).margem.toFixed(3)} → ${r.saiuI1}`);
+  }
+  confere(certos === perto.length,
+    `perto da fronteira, a forte vale ⇔ α nunca sai de (−π/2, π/2] nas 96 poses, em ${certos} de ${perto.length} conjuntos ` +
+    `(margem → poses em que α sai: ${lista.join('; ')})`);
 }
 
 // 6. Δt

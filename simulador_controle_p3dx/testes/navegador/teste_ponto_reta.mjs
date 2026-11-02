@@ -133,7 +133,7 @@ await b.avaliar(`(() => { const e = document.getElementById('odo-ativo'); e.chec
 // 10) de volta à pose
 await b.avaliar(`(() => { const e = document.getElementById('algoritmo'); e.value = 'pose'; e.dispatchEvent(new Event('change')); })()`);
 await dormir(200);
-s = await J(`{ lei: window.simulador.est.lei, vis: ${visiveis}, sentido: window.simulador.est.m.diferencial.e.sentido, conds: document.querySelectorAll('.cond').length, re: !document.getElementById('permitir-re').closest('.marcar').hidden }`);
+s = await J(`{ lei: window.simulador.est.lei, vis: ${visiveis}, sentido: window.simulador.est.m.diferencial.e.sentido, conds: document.querySelectorAll('.cond:not(.forte)').length, re: !document.getElementById('permitir-re').closest('.marcar').hidden }`);
 conferir('seletor → pose: volta o exemplo do Corke de ré, 3 condições e a ré', s.lei === 'pose' && s.sentido === -1 && s.conds === 3 && s.re && s.vis.includes('corke'), s.vis.join(' | '));
 
 // 11) tema escuro na reta e celular

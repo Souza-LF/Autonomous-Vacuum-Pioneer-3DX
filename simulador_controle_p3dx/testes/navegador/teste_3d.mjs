@@ -1,6 +1,7 @@
 // Vista 3D: liga e desliga pela aba sem mudar a corrida (bit a bit com simular() com a vista aberta),
 // robôs, rodas e rastros nas poses do estado, o que aparece igual ao mapa (modelos, arco exato,
-// odometria com os diâmetros reais), as marcas de cada algoritmo, câmera de cima, enquadrar e seguir,
+// odometria com os diâmetros reais), as marcas de cada algoritmo, as letras dos eixos que saem da frente
+// de outro rótulo, câmera de cima, enquadrar e seguir,
 // tema escuro, #3d na URL, celular e o aviso quando a página é aberta como arquivo ou quando o three.js
 // não chega. Fotos em fotos/3d_*.
 import { conectar, dormir, erros, BASE, FOTOS } from './cdp.mjs';
@@ -19,6 +20,16 @@ const marcar = (id, v) => b.avaliar(`(() => { const e = document.getElementById(
 const vista = (modo) => b.avaliar(`(() => { const e = document.querySelector('input[name="vista"][value="${modo}"]'); e.checked = true; e.dispatchEvent(new Event('change')); })()`);
 const estado = () => J('window.vista3d.estado()');
 const elevacao = (c) => (Math.atan2(c.posicao[2] - c.alvo[2], Math.hypot(c.posicao[0] - c.alvo[0], c.posicao[1] - c.alvo[1])) * 180) / Math.PI;
+// as letras x e y dos eixos à vista, e as que cobrem a caixa do texto de outro rótulo na tela
+const letras = () => J(`(() => {
+  const caixa = (e) => { const r = document.createRange(); r.selectNodeContents(e); return r.getBoundingClientRect(); };
+  const todos = [...document.querySelectorAll('#cena3d .rotulo-3d')];
+  const letras = todos.filter((e) => e.textContent === 'x' || e.textContent === 'y');
+  const outros = todos.filter((e) => !letras.includes(e) && e.style.display !== 'none').map(caixa);
+  const vistas = letras.filter((e) => e.style.display !== 'none' && e.style.visibility !== 'hidden');
+  const cobrem = vistas.filter((e) => { const a = caixa(e); return outros.some((b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom); });
+  return { vistas: vistas.map((e) => e.textContent), cobrem: cobrem.map((e) => e.textContent) };
+})()`);
 const luz = (hex) => [1, 3, 5].reduce((s, i) => s + parseInt(hex.slice(i, i + 2), 16), 0);
 
 await b.tela(1400, 950);
@@ -117,6 +128,16 @@ for (const [lei, rotulos] of [['ponto', ['alvo', 'início']], ['reta', ['reta', 
     await ate(25);
     await pausar();
     await b.foto(SAIDA + '3d_caminho.png');
+    // o início fica na origem: a letra de um eixo cairia em cima do "início" e sai; de cima, a sobreposição
+    // muda, mas nenhuma letra à vista cobre outro rótulo
+    s = await letras();
+    conferir('caminho, início na origem: a letra que cairia no "início" sai, e nenhuma cobre outro rótulo', s.vistas.length < 2 && s.cobrem.length === 0,
+      `à vista: ${s.vistas.join(', ') || 'nenhuma'}`);
+    await b.avaliar(`document.getElementById('btn-3d-cima').click()`);
+    await dormir(500);
+    s = await letras();
+    conferir('caminho, de cima: alguma letra à vista, e nenhuma cobre outro rótulo', s.vistas.length > 0 && s.cobrem.length === 0, `à vista: ${s.vistas.join(', ')}`);
+    await b.avaliar(`document.getElementById('btn-3d-enquadrar').click()`);
   }
 }
 

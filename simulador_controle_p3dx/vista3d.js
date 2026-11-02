@@ -401,7 +401,9 @@ function montarGrade() {
   chao.position.set((x0 + x1) / 2, (y0 + y1) / 2, 0);
   grade.add(chao);
   grade.add(setaChao([0, 0], 0, 0.5, 0.014, 'eixo-x'), setaChao([0, 0], Math.PI / 2, 0.5, 0.014, 'eixo-y'));
-  grade.add(rotuloEm('x', 'eixo-x', 0.6, -0.06, 0.02), rotuloEm('y', 'eixo-y', -0.07, 0.6, 0.02));
+  const letras = [rotuloEm('x', 'eixo-x', 0.6, -0.06, 0.02), rotuloEm('y', 'eixo-y', -0.07, 0.6, 0.02)];
+  grade.add(...letras);
+  grade.userData.letras = letras.map((r) => r.element);
   // a reta vai de borda a borda da cena com uma folga, não da grade inteira
   grade.userData.caixa = [a0 - 8, a1 + 8, b0 - 8, b1 + 8];
   grade.userData.passo = g;
@@ -556,6 +558,23 @@ function acompanhar() {
 
 // ---------------------------------------------------------------- quadro
 
+// A caixa do texto de um rótulo na tela, sem o espaço que o desloca do ponto (ver .rotulo-3d no CSS)
+function caixaTexto(e) {
+  const r = document.createRange();
+  r.selectNodeContents(e);
+  return r.getBoundingClientRect();
+}
+const cruzam = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+
+// As letras dos eixos saem quando caem em cima de outro rótulo na tela (o "início" na origem, por
+// exemplo): os eixos continuam pelas cores das setas
+function liberarLetras() {
+  const letras = grade.userData.letras;
+  const outros = [...rotulos.domElement.querySelectorAll('.rotulo-3d')]
+    .filter((e) => !letras.includes(e) && e.style.display !== 'none').map(caixaTexto);
+  for (const e of letras) e.style.visibility = outros.some((b) => cruzam(caixaTexto(e), b)) ? 'hidden' : '';
+}
+
 function mostrar(nome, visivel, P, ang, rastro) {
   const r = robos[nome], f = fitas[nome];
   r.grupo.visible = f.malha.visible = visivel;
@@ -614,6 +633,7 @@ function quadro() {
   cena.fog.far = 3.5 * d + 6;
   renderer.render(cena, camera);
   rotulos.render(cena, camera);
+  liberarLetras();
   quadros++;
   pedido = requestAnimationFrame(quadro);
 }
@@ -645,6 +665,7 @@ function estado() {
     ativa, erro, quadros, robos: r, rastros: f,
     camera: camera ? { posicao: camera.position.toArray(), alvo: controles.target.toArray() } : null,
     rotulos: [...caixa.querySelectorAll('.rotulo-3d')].map((e) => e.textContent),
+    letras: grade ? grade.userData.letras.map((e) => e.style.display !== 'none' && e.style.visibility !== 'hidden') : null,
     ceu: cena ? '#' + cena.background.getHexString() : null,
     tela: renderer ? [renderer.domElement.width, renderer.domElement.height] : null,
     grade: grade ? grade.userData.passo : null,

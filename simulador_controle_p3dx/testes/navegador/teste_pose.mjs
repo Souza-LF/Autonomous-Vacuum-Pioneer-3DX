@@ -1,5 +1,6 @@
 // Página da simulação de controle (etapa 2): corrida do exemplo do Corke igual à do Node, ganhos e
-// condições, mapa (alvo, início, mover), ré, Δt, tema escuro e 390 px. Fotos em fotos/controle_*.png.
+// condições (com a condição forte), mapa (alvo, início, mover), ré, Δt, os números dos eixos e as
+// legendas dos gráficos, o botão de pausa, tema escuro e 390 px. Fotos em fotos/controle_*.png.
 import { conectar, dormir, erros, BASE, FOTOS } from './cdp.mjs';
 
 const SAIDA = FOTOS;
@@ -17,11 +18,73 @@ await b.abrir(URL);
 await dormir(500);
 
 // 1) estado inicial
-let s = await J(`{ conds: [...document.querySelectorAll('.cond')].map((c) => c.className + ' ' + c.textContent),
+let s = await J(`{ conds: [...document.querySelectorAll('.cond:not(.forte)')].map((c) => c.className + ' ' + c.textContent),
+  forte: [...document.querySelectorAll('.cond.forte')].map((c) => c.className + ' ' + c.textContent), sec: document.getElementById('lei-sec').textContent,
   instavel: document.getElementById('aviso-instavel').hidden, hud: document.getElementById('hud').innerText,
   leit: document.getElementById('leituras').innerText, sentido: window.simulador.est.m.diferencial.e.sentido }`);
 conferir('3 condições verdes com os ganhos padrão', s.conds.length === 3 && s.conds.every((c) => c.startsWith('cond ok')) && s.instavel, s.conds.join(' | '));
+conferir('a condição forte vale com os ganhos padrão (margem 0,35), e o texto diz o que ela garante',
+  s.forte.length === 1 && s.forte[0].startsWith('cond forte ok') && /Condição forte/.test(s.sec) && /= 0,35 > 0/.test(s.sec) && /nunca sai de \(−90°, 90°\]/.test(s.sec), s.forte[0] + ' · ' + s.sec);
 conferir('exemplo do Corke abre de ré', s.sentido === -1 && /de ré/.test(s.hud) && /ré/.test(s.leit), s.hud.split('\n').slice(0, 3).join(' / '));
+conferir('quadro de leitura com espaço depois do "="', /ρ = \d/.test(s.hud) && !/ρ =\d/.test(s.hud), s.hud.split('\n')[1]);
+
+// 1b) (1, 2, −1): as três condições valem, a forte não (margem −0,30); ela fica neutra, sem aviso
+await b.avaliar('window.simulador.definirGanhos({ rho: 1, alpha: 2, beta: -1 })');
+s = await J(`{ conds: [...document.querySelectorAll('.cond:not(.forte)')].map((c) => c.className), forte: document.querySelector('.cond.forte').className,
+  sec: document.getElementById('lei-sec').textContent, instavel: document.getElementById('aviso-instavel').hidden }`);
+conferir('(1, 2, −1): três verdes, a forte neutra e o texto diz que α pode sair do intervalo', s.conds.every((c) => c === 'cond ok') && s.forte === 'cond forte neutra' &&
+  s.instavel && /= −0,30:/.test(s.sec) && /pode sair de \(−90°, 90°\]/.test(s.sec), s.sec);
+await b.avaliar(`document.getElementById('btn-ganhos').click()`);
+
+// 1c) os números dos eixos com passo de 2,5 (0 a 10 s no histórico; grade de 0,25 m no mapa) saem sem
+// arredondar: guarda o que cada canvas escreve
+await b.avaliar(`(() => {
+  window.__textos = {};
+  const escrever = CanvasRenderingContext2D.prototype.fillText;
+  CanvasRenderingContext2D.prototype.fillText = function (t, x, y, ...resto) {
+    (window.__textos[this.canvas.id] ||= []).push({ t: String(t), x, y, a: this.textAlign, w: this.measureText(t).width, largura: this.canvas.clientWidth });
+    return escrever.call(this, t, x, y, ...resto);
+  };
+})()`);
+await b.avaliar(`(() => { const S = window.simulador; if (S.est.rodando) document.getElementById('btn-rodar').click(); S.reiniciar(); window.__textos = {}; })()`);
+await dormir(300);
+s = await J(`[...new Set((window.__textos['serie-rho'] || []).map((e) => e.t).filter((t) => / s$/.test(t)))]`);
+conferir('histórico de 0 a 10 s: o eixo do tempo escreve 2,5 e 7,5 s', s.includes('2,5 s') && s.includes('7,5 s') && !s.includes('3 s') && !s.includes('8 s'), s.join(' '));
+await b.avaliar(`(() => { const S = window.simulador; S.est.exibir.seguir = false; Object.assign(S.vista, { esc: 300, x: 7.2, y: 5.1, roboVisivel: false }); window.__textos = {}; })()`);
+await dormir(300);
+s = await J(`[...new Set((window.__textos['mundo'] || []).map((e) => e.t))]`);
+conferir('mapa com grade de 0,25 m: valores e escala sem arredondar', s.includes('6,25') && s.includes('6,75') && s.includes('0,25 m') && !s.includes('6,3') && !s.includes('0,3 m'),
+  s.filter((t) => /^\d/.test(t)).slice(0, 12).join(' '));
+await b.avaliar('window.simulador.enquadrar()');
+
+// 1d) pausado no meio, o botão diz "Continuar"; reiniciado parado, "Iniciar"
+await b.avaliar(`document.getElementById('btn-rodar').click()`);
+await dormir(400);
+await b.avaliar(`document.getElementById('btn-rodar').click()`);
+s = await J(`{ botao: document.getElementById('btn-rodar').textContent, t: window.simulador.est.t, rodando: window.simulador.est.rodando }`);
+const pausado = s;
+await b.avaliar(`document.getElementById('btn-reiniciar').click()`);
+s = await J(`document.getElementById('btn-rodar').textContent`);
+conferir('pausado no meio: "Continuar"; reiniciado parado: "Iniciar"', pausado.botao === 'Continuar' && !pausado.rodando && pausado.t > 0 && s === 'Iniciar',
+  `t = ${pausado.t.toFixed(2)} s: "${pausado.botao}"; depois de reiniciar: "${s}"`);
+
+// 1e) a 1400 px os gráficos ficam em três colunas estreitas; no meio da corrida de ré (v ≈ −0,34 m/s, com
+// as legendas mais compridas), nenhum texto dos gráficos passa da borda direita: a legenda desce de linha
+const borda = () => J(`Object.entries(window.__textos).filter(([id]) => id.startsWith('serie-')).map(([id, l]) => {
+  const fim = Math.max(...l.map((e) => (e.a === 'right' ? e.x : e.a === 'center' ? e.x + e.w / 2 : e.x + e.w)));
+  return { id, sobra: Math.round((l[0].largura - fim) * 10) / 10 };
+})`);
+await b.avaliar(`(() => { const S = window.simulador; for (let i = 0; i < 130; i++) S.passo(); window.__textos = {}; })()`);
+await dormir(300);
+s = await borda();
+conferir('a 1400 px, no meio da corrida de ré: nenhum texto dos gráficos passa da borda', s.length >= 5 && s.every((g) => g.sobra >= 0),
+  s.map((g) => `${g.id.slice(6)} ${g.sobra} px`).join(' · '));
+await b.foto(SAIDA + 'controle_legendas.png');
+await b.avaliar(`(() => { window.simulador.reiniciar(); window.__textos = {}; })()`);
+await dormir(300);
+s = await borda();
+conferir('no começo (eixo do tempo de 0 a 10 s), o "10,0 s" da borda também fica dentro', s.length >= 5 && s.every((g) => g.sobra >= 0),
+  s.map((g) => `${g.id.slice(6)} ${g.sobra} px`).join(' · '));
 
 // 2) corrida inteira: igual a K.simular() com as mesmas opções (mesma função de passo)
 await rapido();
