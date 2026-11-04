@@ -65,6 +65,8 @@ s = await J(`{ agora: document.getElementById('agora-modelo').textContent, estad
 conferir('só a odometria: o painel "Agora" segue a estimativa', s.agora === 'odometria' && /estimativa chegou/.test(s.estado), s.estado);
 await b.tela(1400, 950, true);
 await dormir(400);
+const fundo = await b.avaliar(`getComputedStyle(document.body).backgroundColor`);
+conferir('sistema no modo escuro: o fundo continua claro', fundo === 'rgb(243, 245, 248)', fundo);
 await b.foto(SAIDA + 'controle_odo_escuro.png');
 
 const e = erros(b.eventos);

@@ -1,7 +1,7 @@
 // Etapa 5: caminho (pure pursuit) na página. Abrir pela URL, painel e textos, corridas dos cinco
 // caminhos prontos iguais às do Node bit a bit, edição dos waypoints no mapa (acrescentar, arrastar,
 // inserir num trecho, apagar com Shift e com o botão direito, mínimo de dois), botões, ganhos,
-// odometria no caminho, tema escuro e celular.
+// odometria no caminho, fundo claro com o sistema escuro e celular.
 import { conectar, dormir, erros, BASE, FOTOS } from './cdp.mjs';
 
 const SAIDA = FOTOS;
@@ -31,7 +31,8 @@ const clique = async (x, y, { shift = false, direito = false } = {}) => {
   await b.enviar('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button, buttons: 0, clickCount: 1, modifiers });
   await dormir(150);
 };
-const perto = (p, q, tol = 0.02) => Math.abs(p[0] - q[0]) <= tol && Math.abs(p[1] - q[1]) <= tol;
+// a folga de 1e-9 é do ponto flutuante: |1,98 − 2| dá 0,020000000000000018
+const perto = (p, q, tol = 0.02) => Math.abs(p[0] - q[0]) <= tol + 1e-9 && Math.abs(p[1] - q[1]) <= tol + 1e-9;
 
 await b.tela(1400, 950);
 
@@ -188,10 +189,12 @@ await dormir(200);
 s = await J(`{ lei: window.simulador.est.lei, n: window.simulador.est.caminho.length }`);
 conferir('seletor → caminho: abre o do Corke', s.lei === 'caminho' && s.n === 4, JSON.stringify(s));
 
-// 8) tema escuro e celular
+// 8) sistema no modo escuro e celular
 await b.tela(1400, 950, true);
 await b.abrir(URL + '?algoritmo=caminho');
 await dormir(2500);
+const fundo = await b.avaliar(`getComputedStyle(document.body).backgroundColor`);
+conferir('sistema no modo escuro: o fundo continua claro', fundo === 'rgb(243, 245, 248)', fundo);
 await b.foto(SAIDA + 'controle_caminho_escuro.png');
 await b.tela(390, 844, false, true);
 await b.abrir(URL + '?algoritmo=caminho');

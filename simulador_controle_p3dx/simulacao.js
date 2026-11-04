@@ -1689,9 +1689,8 @@
       e.preventDefault();
     });
 
-    // tema: o do sistema ou o escolhido no atributo data-theme da raiz; e as fontes que chegam depois
+    // tema: o escolhido no atributo data-theme da raiz; e as fontes que chegam depois
     const redesenhar = () => { lerCores(); sujo.series = true; };
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redesenhar);
     new MutationObserver(redesenhar).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     if (document.fonts) document.fonts.ready.then(redesenhar);
     new ResizeObserver(() => { sujo.series = true; }).observe(document.body);

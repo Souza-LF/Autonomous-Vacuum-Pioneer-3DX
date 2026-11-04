@@ -53,49 +53,8 @@
   --fonte-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --fundo: #0f141b;
-    --painel: #161d26;
-    --borda: #2a3442;
-    --texto: #e6ebf2;
-    --texto-suave: #9aa6b6;
-    --campo: #0f141b;
-    --fundo-cena: #0c1117;
-    --hud-fundo: rgba(22, 29, 38, 0.88);
-    --destaque: #5b9cff;
-    --sobre-destaque: #0b1424;
-    --sombra: none;
-    --dif: #5b9cff;
-    --dif-corpo: #e8b923;
-    --inc: #ff8a4c;
-    --inc-corpo: #3fbfd1;
-    --exato: #8a94a6;
-    --real: #dee2e6;
-    --real-corpo: #6c757d;
-    --odo: #e8a06a;
-    --wl: #3bc9db;
-    --wr: #f06595;
-    --v: #69db7c;
-    --w: #b197fc;
-    --alfa: #ffa94d;
-    --beta: #38d9a9;
-    --alvo: #da77f2;
-    --grade: #1a222d;
-    --grade-forte: #2a3646;
-    --eixo-x: #ff6b6b;
-    --eixo-y: #51cf66;
-    --orientacao: #ff6b6b;
-    --aviso-fundo: #3b2f0b;
-    --aviso-texto: #ffd666;
-    --ok-fundo: #12351f;
-    --ok-texto: #8ce99a;
-    --ruim-fundo: #3d1418;
-    --ruim-texto: #ffa8a8;
-  }
-}
-/* os mesmos valores escuros quando o tema é escolhido à mão */
+/* o fundo é sempre claro, mesmo com o sistema no modo escuro; o tema escuro só entra escolhido à mão,
+   com data-theme="dark" na raiz */
 :root[data-theme="dark"] {
   color-scheme: dark;
   --fundo: #0f141b;

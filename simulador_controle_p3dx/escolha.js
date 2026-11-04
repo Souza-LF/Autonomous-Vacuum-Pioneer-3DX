@@ -210,7 +210,6 @@
   lerCores();
   const recolorir = () => lerCores();
   semMovimento.addEventListener('change', () => { for (const c of cartoes) c.inicio = null; });
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', recolorir);
   new MutationObserver(recolorir).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   if (document.fonts) document.fonts.ready.then(recolorir);
   requestAnimationFrame(quadro);

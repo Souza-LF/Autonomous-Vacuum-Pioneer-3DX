@@ -1,6 +1,6 @@
 // Página da simulação de controle (etapa 2): corrida do exemplo do Corke igual à do Node, ganhos e
 // condições (com a condição forte), mapa (alvo, início, mover), ré, Δt, os números dos eixos e as
-// legendas dos gráficos, o botão de pausa, tema escuro e 390 px. Fotos em fotos/controle_*.png.
+// legendas dos gráficos, o botão de pausa, fundo claro com o sistema escuro e 390 px. Fotos em fotos/controle_*.png.
 import { conectar, dormir, erros, BASE, FOTOS } from './cdp.mjs';
 
 const SAIDA = FOTOS;
@@ -171,9 +171,11 @@ conferir('Δt = 0,2 s: corrida refeita com o novo Δt', s.dt === 0.2 && Math.abs
 await campo('p-dt-num', '0.05');
 await ateFim();
 
-// 9) tema escuro e celular
+// 9) sistema no modo escuro e celular
 await b.tela(1400, 950, true);
 await dormir(400);
+const fundo = await b.avaliar(`getComputedStyle(document.body).backgroundColor`);
+conferir('sistema no modo escuro: o fundo continua claro', fundo === 'rgb(243, 245, 248)', fundo);
 await b.foto(SAIDA + 'controle_escuro.png');
 await b.tela(390, 844, false, true);
 await b.abrir(URL);

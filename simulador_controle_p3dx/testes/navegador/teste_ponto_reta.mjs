@@ -136,10 +136,12 @@ await dormir(200);
 s = await J(`{ lei: window.simulador.est.lei, vis: ${visiveis}, sentido: window.simulador.est.m.diferencial.e.sentido, conds: document.querySelectorAll('.cond:not(.forte)').length, re: !document.getElementById('permitir-re').closest('.marcar').hidden }`);
 conferir('seletor → pose: volta o exemplo do Corke de ré, 3 condições e a ré', s.lei === 'pose' && s.sentido === -1 && s.conds === 3 && s.re && s.vis.includes('corke'), s.vis.join(' | '));
 
-// 11) tema escuro na reta e celular
+// 11) sistema no modo escuro na reta e celular
 await b.abrir(URL + '?algoritmo=reta');
 await b.tela(1400, 950, true);
 await dormir(2500);
+const fundo = await b.avaliar(`getComputedStyle(document.body).backgroundColor`);
+conferir('sistema no modo escuro: o fundo continua claro', fundo === 'rgb(243, 245, 248)', fundo);
 await b.foto(SAIDA + 'controle_reta_escuro.png');
 await b.tela(390, 844, false, true);
 await b.abrir(URL + '?algoritmo=ponto');

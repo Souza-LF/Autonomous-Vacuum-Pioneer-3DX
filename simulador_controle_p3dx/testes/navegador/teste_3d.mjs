@@ -2,7 +2,7 @@
 // robôs, rodas e rastros nas poses do estado, o que aparece igual ao mapa (modelos, arco exato,
 // odometria com os diâmetros reais), as marcas de cada algoritmo, as letras dos eixos que saem da frente
 // de outro rótulo, câmera de cima, enquadrar e seguir,
-// tema escuro, #3d na URL, celular e o aviso quando a página é aberta como arquivo ou quando o three.js
+// fundo claro com o sistema escuro e o tema escuro escolhido à mão, #3d na URL, celular e o aviso quando a página é aberta como arquivo ou quando o three.js
 // não chega. Fotos em fotos/3d_*.
 import { conectar, dormir, erros, BASE, FOTOS } from './cdp.mjs';
 
@@ -165,15 +165,20 @@ s = await J(`(() => { const P = window.simulador.est.m.diferencial.P, c = window
 conferir('"Câmera segue o robô" leva a câmera junto', s < 0.01, `${(s * 1000).toFixed(1)} mm do robô`);
 await marcar('ex-seguir', false);
 
-// 8) tema escuro: o fundo da vista 3D troca junto
+// 8) o sistema no modo escuro não muda nada; o tema escuro escolhido à mão escurece o fundo da vista 3D
 const claro = (await estado()).ceu;
 await b.tela(1400, 950, true);
 await dormir(500);
+s = (await estado()).ceu;
+conferir('sistema no modo escuro: o fundo da vista 3D continua claro', s === claro, `${claro} → ${s}`);
+await b.avaliar(`document.documentElement.dataset.theme = 'dark'`);
+await dormir(500);
 const escuro = (await estado()).ceu;
-conferir('tema escuro escurece o fundo da vista 3D', luz(escuro) < luz(claro), `${claro} → ${escuro}`);
+conferir('tema escuro à mão escurece o fundo da vista 3D', luz(escuro) < luz(claro), `${claro} → ${escuro}`);
 await b.avaliar(`document.getElementById('btn-3d-enquadrar').click()`);
 await dormir(400);
 await b.foto(SAIDA + '3d_escuro.png');
+await b.avaliar(`delete document.documentElement.dataset.theme`);
 await b.tela(1400, 950);
 
 // 9) de volta ao mapa 2D: a vista 3D para e some, a URL perde o #3d, as ferramentas e a dica voltam

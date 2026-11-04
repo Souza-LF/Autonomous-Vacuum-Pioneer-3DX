@@ -69,6 +69,8 @@ A roda do mouse dá zoom. Com "Mover vista", arrastar move o mapa e o duplo cliq
 foco fora dos campos, espaço pausa e R reinicia. Mudar ganhos, poses, parâmetros ou Δt recomeça a
 corrida da pose inicial.
 
+O fundo é sempre claro, mesmo com o Windows ou o navegador no modo escuro.
+
 ## A vista 3D
 
 A aba "Vista 3D" mostra a mesma corrida em 3D, desenhada com o three.js. A vista só lê o estado da
@@ -88,7 +90,7 @@ simulação e não muda nada nele: com ela aberta, a corrida continua bit a bit 
   na direção do cursor. "De cima" olha o chão de cima e "Enquadrar" volta à vista inicial. Enquanto
   a câmera não é mexida, ela acompanha o robô quando ele chega perto da borda; "Câmera segue o robô",
   nas opções de exibição, também vale aqui.
-- Alvo, reta e caminho se marcam no mapa 2D; a vista 3D acompanha. As cores seguem o tema.
+- Alvo, reta e caminho se marcam no mapa 2D; a vista 3D acompanha, com as mesmas cores.
 - `#3d` no fim da URL abre direto na vista 3D (`simulacao.html?algoritmo=reta#3d`); trocar de aba
   atualiza a URL.
 - O three.js 0.160.0 (licença MIT) vem junto, em `vendor/three/`: a vista 3D funciona sem internet,
@@ -282,7 +284,7 @@ node testes/navegador/rodar.mjs
 ```
 
 O `msedge.exe` fica em `C:\Program Files (x86)\Microsoft\Edge\Application`. O `rodar.mjs` roda os
-seis testes em sequência (137 conferências) e sai com erro se algum falhar; `rodar.mjs 3d` roda só
+seis testes em sequência (143 conferências) e sai com erro se algum falhar; `rodar.mjs 3d` roda só
 os que têm "3d" no nome. `PORTA` e `PORTA_CDP` mudam as portas do servidor (8000) e do Edge (9333).
 As fotos dos testes vão para `testes/navegador/fotos/`, fora do git.
 
@@ -299,7 +301,7 @@ As fotos dos testes vão para `testes/navegador/fotos/`, fora do git.
   - na vista 3D: robôs, giro e diâmetro das rodas e rastros iguais aos do estado, os rótulos de
     cada algoritmo, as letras dos eixos que saem quando cobririam outro rótulo, "De cima", "Enquadrar", "Câmera segue o robô", o `#3d` da URL e o aviso quando a
     página é aberta como arquivo ou quando o three.js não chega;
-  - o tema escuro e a página a 390 px, nas duas vistas;
+  - o fundo claro com o sistema no modo escuro e a página a 390 px, nas duas vistas;
   - o console sem erros.
 - O executável serve os mesmos arquivos da pasta (md5 iguais), e os mesmos testes passaram contra ele.
 
@@ -311,7 +313,7 @@ As fotos dos testes vão para `testes/navegador/fotos/`, fora do git.
 | `simulacao.html`, `simulacao.js` | A página da simulação: estado, tempo, desenho do mapa e do histórico, eventos. |
 | `vista3d.js` | A vista 3D (módulo ES): o P3-DX, os rastros e as marcas desenhados com o three.js a partir do estado da simulação, sem mudá-lo. |
 | `vendor/three/` | three.js 0.160.0 (MIT), com o `OrbitControls` e o `CSS2DRenderer`; origem e sha256 em `LEIAME.md`. |
-| `estilo.css` | Aparência das duas páginas, temas claro e escuro e as cores usadas no desenho (no mapa e na vista 3D). |
+| `estilo.css` | Aparência das duas páginas (fundo sempre claro; o tema escuro só entra com `data-theme="dark"` na raiz) e as cores usadas no desenho (no mapa e na vista 3D). |
 | `controladores.js` | As quatro leis, a malha fechada, a malha pela odometria e os exemplos do Corke. Não depende da página: roda no navegador e no Node. |
 | `cinematica.js` | Cópia do simulador da Aula 14: direta, inversa, saturação, os três passos de integração, os pulsos do encoder e o passo da odometria. |
 | `servidor.py` | Servidor local (biblioteca padrão do Python). |

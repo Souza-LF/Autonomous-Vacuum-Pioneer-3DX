@@ -354,7 +354,6 @@ function montar() {
 
   aplicarCores();
   const retingir = () => { lerCores(); aplicarCores(); };
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', retingir);
   new MutationObserver(retingir).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   return true;
 }

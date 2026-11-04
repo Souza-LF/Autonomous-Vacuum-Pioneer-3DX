@@ -1,6 +1,6 @@
 // Etapa 6: página de escolha. Quatro cartões com links, legendas iguais às corridas do Node,
 // miniaturas desenhadas e animando, "reduzir movimento", clique levando à simulação certa, o link de
-// volta e o algoritmo na URL, tema escuro, 1000 px e celular.
+// volta e o algoritmo na URL, fundo claro com o sistema escuro, 1000 px e celular.
 import { conectar, dormir, erros, BASE, FOTOS } from './cdp.mjs';
 
 const SAIDA = FOTOS;
@@ -87,9 +87,11 @@ await dormir(1200);
 s = await J(`{ url: location.pathname, n: document.querySelectorAll('.lei-cartao').length }`);
 conferir('"← Os quatro algoritmos" volta à página de escolha', s.url === '/index.html' && s.n === 4, JSON.stringify(s));
 
-// 8) tema escuro, 1000 px (dois por linha) e celular (um por linha)
+// 8) sistema no modo escuro, 1000 px (dois por linha) e celular (um por linha)
 await midia(true, false);
 await dormir(1500);
+const fundo = await b.avaliar(`getComputedStyle(document.body).backgroundColor`);
+conferir('sistema no modo escuro: o fundo continua claro', fundo === 'rgb(243, 245, 248)', fundo);
 await b.foto(SAIDA + 'escolha_escuro.png');
 await b.tela(1000, 900);
 await b.abrir(BASE + 'index.html');
